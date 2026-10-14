@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "[ -n \"$CARRY_SYNC_DIR\" ] && carry pull \"$CARRY_SYNC_DIR\" --quiet || true" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "[ -n \"$CARRY_SYNC_DIR\" ] && carry push \"$CARRY_SYNC_DIR\" --quiet || true" } ] }
+    ]
+  }
+}
