@@ -40,7 +40,10 @@ export function findSession(folders, idOrPrefix) {
     }
   }
   if (hits.length === 0) throw new Error(`no session matches "${idOrPrefix}"`);
-  if (hits.length > 1) throw new Error(`"${idOrPrefix}" is ambiguous: ${hits.map((h) => h.id.slice(0, 8)).join(', ')}`);
+  if (hits.length > 1) {
+    const where = hits.map((h) => `${h.id.slice(0, 8)} in ${path.basename(h.folder)}`).join('; ');
+    throw new Error(`"${idOrPrefix}" matches more than one session (${where}). Narrow it with --project DIR or a longer id.`);
+  }
   return hits[0];
 }
 
