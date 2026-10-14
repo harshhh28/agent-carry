@@ -1,0 +1,15 @@
+{
+  "name": "agent-carry",
+  "version": "0.1.0",
+  "description": "Move coding-agent sessions between machines and folders: path-portable, redacted, encrypted, merge-safe bundles. Claude Code today; adapter-ready for Codex and others.",
+  "type": "module",
+  "bin": { "carry": "src/cli.js" },
+  "files": ["src", "plugin", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "check:real": "node scripts/check-real.js"
+  },
+  "keywords": ["claude-code", "codex", "coding-agent", "sessions", "transcripts", "portable", "resume", "sync"],
+  "license": "MIT"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "carry",
+  "version": "0.1.0",
+  "description": "Move coding-agent sessions between machines and folders: /carry:share exports a redacted, path-portable bundle, /carry:pickup imports one.",
+  "author": { "name": "agent-carry contributors" },
+  "license": "MIT"
+}
