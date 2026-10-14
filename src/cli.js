@@ -79,7 +79,15 @@ function main() {
         target = { folder: here, id: s.id };
       } else {
         if (!pos[0]) fail('export needs a session id (see `carry list`) or --latest');
-        target = findSession(folders, pos[0]);
+        // Same id can exist in several project folders (a session that was carried). Prefer the folder
+        // named by --project, else the current one, and only then search everything.
+        const scoped = path.join(projectsDir(home), mangle(realpathOr(flags.project || process.cwd())));
+        try {
+          target = findSession([scoped], pos[0]);
+        } catch (e) {
+          if (flags.project) throw e;
+          target = findSession(folders, pos[0]);
+        }
       }
       const entries = parseJsonl(fs.readFileSync(path.join(target.folder, `${target.id}.jsonl`), 'utf8'));
       const sum = summarize(entries);

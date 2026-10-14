@@ -200,3 +200,15 @@ test('bundles name their agent; an unknown agent is refused clearly, an unlabell
   void agent;
   assert.doesNotThrow(() => readBundle(write(legacy, 'legacy.carry')));
 });
+
+test('export: an id present in two project folders needs --project, which pins it', () => {
+  const s = setup();
+  const other = path.join(s.b, 'copy');
+  fs.mkdirSync(other, { recursive: true });
+  const run = (args, cwd) => execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const first = path.join(s.b, 'a.carry.gz');
+  run(['export', '--latest', '-o', first, '--claude-home', s.m.claude, '--home', s.a], s.rootA);
+  run(['import', first, '--claude-home', s.m.claude, '--home', s.a], other);
+  assert.throws(() => run(['export', '11111111', '-o', path.join(s.b, 'x.gz'), '--claude-home', s.m.claude, '--home', s.a], s.b), /more than one session.*--project/s);
+  assert.doesNotThrow(() => run(['export', '11111111', '--project', s.rootA, '-o', path.join(s.b, 'y.gz'), '--claude-home', s.m.claude, '--home', s.a], s.b));
+});
