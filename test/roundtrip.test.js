@@ -161,16 +161,21 @@ test('import refuses sidecar paths that escape the project folder', () => {
   assert.ok(!fs.existsSync(path.join(s.b, 'escape.txt')));
 });
 
-test('credential-like strings inside signed thinking blocks are reported, not silently shipped', () => {
-  const s = setup();
+function plantThinkingSecret(s) {
   const lines = fs.readFileSync(s.m.main, 'utf8').split('\n');
   const i = lines.findIndex((l) => l.includes('"uuid":"a1"'));
   const r = JSON.parse(lines[i]);
   r.message.content[0].thinking = `the key is ${SECRETS.github}`;
   lines[i] = JSON.stringify(r);
   fs.writeFileSync(s.m.main, lines.join('\n'));
-  assert.equal(exportFrom(s).header.thinking.possibleSecrets, 1);
+}
+
+test('credential-like strings in signed thinking blocks: export refuses by default, with a way out', () => {
+  const s = setup();
+  plantThinkingSecret(s);
+  assert.throws(() => exportFrom(s), (e) => e.code === 'THINKING_SECRETS' && /--strip-thinking/.test(e.message));
   assert.equal(exportFrom(s, { stripThinking: true }).header.thinking.possibleSecrets, 0);
+  assert.equal(exportFrom(s, { allowThinkingSecrets: true }).header.thinking.possibleSecrets, 1);
 });
 
 test('repeated bookkeeping lines keep their order on a fresh import (last one wins)', () => {
@@ -211,4 +216,15 @@ test('export: an id present in two project folders needs --project, which pins i
   run(['import', first, '--claude-home', s.m.claude, '--home', s.a], other);
   assert.throws(() => run(['export', '11111111', '-o', path.join(s.b, 'x.gz'), '--claude-home', s.m.claude, '--home', s.a], s.b), /more than one session.*--project/s);
   assert.doesNotThrow(() => run(['export', '11111111', '--project', s.rootA, '-o', path.join(s.b, 'y.gz'), '--claude-home', s.m.claude, '--home', s.a], s.b));
+});
+
+test('CLI: --version, and export refuses on thinking secrets until told otherwise', () => {
+  const s = setup();
+  const run = (args, cwd) => execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.match(run(['--version'], s.rootA), /^\d+\.\d+\.\d+\n$/);
+  plantThinkingSecret(s);
+  const base = ['export', '--latest', '--claude-home', s.m.claude, '--home', s.a, '-o'];
+  assert.throws(() => run([...base, path.join(s.b, 'a.gz')], s.rootA), /--strip-thinking/);
+  assert.doesNotThrow(() => run([...base, path.join(s.b, 'b.gz'), '--strip-thinking'], s.rootA));
+  assert.doesNotThrow(() => run([...base, path.join(s.b, 'c.gz'), '--allow-thinking-secrets'], s.rootA));
 });

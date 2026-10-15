@@ -12,7 +12,7 @@ const HELP = `carry (agent-carry): move coding-agent sessions between machines a
 
   carry list    [--all] [--project DIR]
   carry export  <id|prefix|--latest> [-o FILE] [--project-root DIR]
-                [--no-redact] [--redact-emails] [--strip-thinking]
+                [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
   carry inspect <bundle>
   carry import  <bundle> [--project-root DIR] [--dry-run]
   carry push    <dir> [--name PROJECT] [--quiet]     sync every session of this project to a shared folder
@@ -44,6 +44,10 @@ function fail(msg) {
 
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === '--version' || cmd === '-v' || cmd === 'version') {
+    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    return process.stdout.write(`${pkg.version}\n`);
+  }
   const { flags, pos } = parseArgs(rest);
   const home = flags['claude-home'] ? path.resolve(flags['claude-home']) : claudeHome();
   const userHome = flags.home ? path.resolve(flags.home) : os.homedir();
@@ -100,6 +104,7 @@ function main() {
         redact: !flags['no-redact'],
         emails: !!flags['redact-emails'],
         stripThinking: !!flags['strip-thinking'],
+        allowThinkingSecrets: !!flags['allow-thinking-secrets'],
       });
       const out = flags.o || flags.out || `${target.id.slice(0, 8)}${passphrase ? '.carry.enc' : '.carry.gz'}`;
       writeBundle(out, text, { passphrase });
@@ -147,6 +152,7 @@ function main() {
       const common = { dir, claudeHome: home, root: cwd, userHome, passphrase, name: flags.name, log: say };
       if (cmd === 'push') {
         const r = pushProject(common);
+        if (r.skipped.length) process.stderr.write(`  ${r.skipped.length} session(s) skipped: credential-like text in thinking blocks\n`);
         say(`push ${r.key}: ${r.pushed} written, ${r.unchanged} unchanged (device ${r.device}${passphrase ? ', encrypted' : ''})`);
       } else {
         const r = pullProject({ ...common, dryRun: !!flags['dry-run'] });

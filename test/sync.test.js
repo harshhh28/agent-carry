@@ -137,3 +137,17 @@ test('CLI push/pull with env passphrase', () => {
   assert.match(run(['pull', s.shared, '--name', 'app', '--claude-home', s.B.claude, '--home', s.B.home], s.B), /1 session\(s\) updated/);
   assert.equal(run(['pull', s.shared, '--name', 'app', '--quiet', '--claude-home', s.B.claude, '--home', s.B.home], s.B), '');
 });
+
+test('push skips a session whose thinking blocks hold credentials and still pushes the rest', () => {
+  const s = twoDevices();
+  const lines = fs.readFileSync(s.m.main, 'utf8').split('\n');
+  const i = lines.findIndex((l) => l.includes('"uuid":"a1"'));
+  const r = JSON.parse(lines[i]);
+  r.message.content[0].thinking = `key ${SECRETS.github}`;
+  lines[i] = JSON.stringify(r);
+  fs.writeFileSync(s.m.main, lines.join('\n'));
+  fakeMachine({ userHome: s.A.home, projectRoot: s.A.root, id: '99999999-2222-3333-4444-555555555555' });
+  const out = pushProject(s.opts(s.A));
+  assert.deepEqual(out.skipped, [s.m.id]);
+  assert.equal(out.pushed, 1);
+});

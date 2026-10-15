@@ -93,7 +93,7 @@ nothing but a folder. ctxhop is better for an always-on personal sync across man
 
 ## What is verified
 
-- `npm test`: 31 tests on synthetic two-machine setups: planted secrets and paths, merge, tampering, encryption, folder sync convergence.
+- `npm test`: 36 tests on synthetic two-machine setups: planted secrets and paths, merge, tampering, encryption, folder sync convergence.
 - `npm run check:real` round-trips every session in your own `~/.claude` into a temp store under a different
   root, read-only on the real one. On the author's 1,150 sessions (58k records): no record lost, no dangling
   parent that wasn't already dangling, no source path left outside thinking blocks, re-import byte-identical.
@@ -105,9 +105,13 @@ nothing but a folder. ctxhop is better for an always-on personal sync across man
   Claude Code 2.1.299): resumed from a folder it never ran in, it recalled its first request and reported the new
   working directory. That is one session on one version. Run `scripts/verify-resume.sh` on yours. The transcript
   format is internal and undocumented and can change; carry parses tolerantly and carries unknown lines through.
-- **Thinking blocks are signed**, so they are carried verbatim: not path-rewritten, not redacted. The exporter
-  counts credential-like strings inside them and warns; `--strip-thinking` removes them.
-- **Redaction is pattern-based and best effort.** It will not find a password that looks like a sentence. A bundle
+- **Thinking blocks are signed**, so they are carried verbatim: not path-rewritten, not redacted. If one contains
+  a credential-like string, export **refuses** unless you pass `--strip-thinking` (drop thinking blocks; resume
+  with stripped thinking is untested) or `--allow-thinking-secrets`. `carry push` skips those sessions.
+- **Redaction is pattern-based and best effort.** It will not find a password that looks like a sentence, or a
+  letters-only lower-case `password=correcthorse` (lower-case names need a digit in the value, to avoid mangling
+  code like `token = parseToken(x)`). ALL_CAPS names like `DB_PASSWORD=` are always redacted. Base64 is only
+  caught when it decodes to something the other rules catch. A bundle
   is not encrypted. Don't commit one to a public repo, and read `carry inspect` before sharing.
 - **Cowork / desktop**: not checked. If it stores sessions somewhere else, it needs its own adapter.
 - **Push re-uploads sessions you pulled** (one file per device, merged on pull), so folder size grows with devices x sessions.

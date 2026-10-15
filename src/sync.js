@@ -77,10 +77,19 @@ export function pushProject({ dir, claudeHome, root, userHome, passphrase, name,
   const folder = path.join(projectsDir(claudeHome), mangle(realRoot));
   const key = projectKey(realRoot, name);
   const dev = deviceInfo(cfg);
-  const out = { key, device: dev.id, pushed: 0, unchanged: 0 };
+  const out = { key, device: dev.id, pushed: 0, unchanged: 0, skipped: [] };
   for (const s of listSessions(folder)) {
     const target = path.join(dir, key, s.id, `${dev.id}${ext(passphrase)}`);
-    const { text, header } = buildBundle({ folder, id: s.id, where: { store: folder, root: realRoot, home: userHome } });
+    let built;
+    try {
+      built = buildBundle({ folder, id: s.id, where: { store: folder, root: realRoot, home: userHome } });
+    } catch (e) {
+      if (e.code !== 'THINKING_SECRETS') throw e;
+      out.skipped.push(s.id);
+      log(`skipped ${s.id.slice(0, 8)}: credential-like text in thinking blocks (export it by hand with --strip-thinking)`);
+      continue;
+    }
+    const { text, header } = built;
     if (fs.existsSync(target)) {
       try {
         if (readBundle(target, { passphrase }).header.bodySha256 === header.bodySha256) {

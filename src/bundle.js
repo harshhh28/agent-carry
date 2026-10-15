@@ -10,6 +10,8 @@ import { encrypt, decrypt, isEncrypted } from './crypto.js';
 import { readSession } from './store.js';
 
 export const FORMAT = 1;
+const MAX_BUNDLE_BYTES = 1024 * 1024 * 1024; // refuse decompression bombs
+
 export const TOOL = 'agent-carry/0.1.0';
 
 /** Agents this build can read and write. Bundles name their agent so other adapters can be added without a format change. */
@@ -24,7 +26,7 @@ const SUPPORTED_AGENTS = new Set([AGENT]);
  * A `.gz` suffix gzips the whole thing.
  */
 
-export function buildBundle({ folder, id, where, redact = true, emails = false, stripThinking = false }) {
+export function buildBundle({ folder, id, where, redact = true, emails = false, stripThinking = false, allowThinkingSecrets = false }) {
   const { parts, skipped } = readSession(folder, id);
   const mapper = toPortable(where);
   const redactor = redact ? makeRedactor({ emails }) : null;
@@ -71,6 +73,14 @@ export function buildBundle({ folder, id, where, redact = true, emails = false, 
     partsMeta.push({ rel: part.rel, kind: part.kind, count });
   }
 
+  if (redact && !stripThinking && !allowThinkingSecrets && thinking.possibleSecrets > 0) {
+    const e = new Error(
+      `${thinking.possibleSecrets} credential-like string(s) in ${thinking.blocks} signed thinking block(s) cannot be redacted (editing a thinking block invalidates it). ` +
+        'Re-run with --strip-thinking to drop thinking blocks, or --allow-thinking-secrets to export them as they are.',
+    );
+    e.code = 'THINKING_SECRETS';
+    throw e;
+  }
   const bodyText = body.join('\n') + '\n';
   const header = {
     carry: FORMAT,
@@ -131,9 +141,10 @@ export function writeBundle(file, text, { passphrase } = {}) {
 }
 
 export function readBundle(file, { passphrase } = {}) {
+  if (fs.statSync(file).size > MAX_BUNDLE_BYTES) throw new Error('bundle is larger than 1 GB; refusing to read it');
   let buf = fs.readFileSync(file);
   if (isEncrypted(buf)) buf = decrypt(buf, passphrase);
-  if (buf[0] === 0x1f && buf[1] === 0x8b) buf = zlib.gunzipSync(buf);
+  if (buf[0] === 0x1f && buf[1] === 0x8b) buf = zlib.gunzipSync(buf, { maxOutputLength: MAX_BUNDLE_BYTES });
   const text = buf.toString('utf8');
   const nl = text.indexOf('\n');
   if (nl < 0) throw new Error('not a carry bundle (no header)');

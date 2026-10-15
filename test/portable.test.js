@@ -72,3 +72,41 @@ test('object keys are rewritten too (file-history snapshots are keyed by absolut
   const back = mapStrings(out, fromPortable(B).fn);
   assert.deepEqual(Object.keys(back.snapshot.trackedFileBackups), [`${B.root}/src/a.js`]);
 });
+
+test('redaction closes the gaps found in review: ANSI-prefixed env, lowercase names, escaped JSON, base64', () => {
+  const PW = 'S3cr3tPassw0rd!x';
+  const r = () => makeRedactor();
+  const cases = {
+    'ansi-prefixed env': `\u001b[31mDB_PASSWORD=${PW}\u001b[0m`,
+    'ansi, doubly escaped colour': `u001b[31mDB_PASSWORD=${PW}`,
+    'lowercase name': `connect with password=${PW} now`,
+    'lowercase colon': `api_key: ${PW}${PW}`,
+    'quoted': `SECRET_TOKEN="${PW}"`,
+    'escaped json': `{"note": "${JSON.stringify({ token: PW + 'zz' }).replace(/"/g, '\\"')}"}`,
+    'double escaped json': JSON.stringify(JSON.stringify({ api_key: PW + 'zz' })),
+    'base64': 'b64 ' + Buffer.from('aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY').toString('base64'),
+    'base64 of a bearer': Buffer.from('Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789').toString('base64'),
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    const out = r().fn(text);
+    assert.ok(!out.includes(PW) && !out.includes('wJalrXUtnFEMI') && !out.includes('abcdefghijklmnopqrstuvwxyz'), `${name} leaked: ${out}`);
+    assert.ok(!out.includes(Buffer.from('aws_secret_access_key=wJal').toString('base64').slice(0, 20)), `${name} base64 leaked`);
+  }
+});
+
+test('redaction leaves ordinary text, hashes and placeholders alone, and is idempotent', () => {
+  const calm = [
+    'max_tokens = 4096 and token count is fine',
+    'sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    'The password field is required.',
+    'const token = parseToken(request)',
+    'tokenHash: abcdefghijklmnop and max_tokens=ninetynine',
+    'password=correcthorsebatterystaple',
+    'Ym9vbGVhbiBub3RoaW5nIGludGVyZXN0aW5nIGhlcmUgYXQgYWxs',
+  ];
+  for (const t of calm) assert.equal(makeRedactor().fn(t), t, t);
+  const once = makeRedactor().fn('STRIPE_SECRET_KEY=abcdefghijklmnop');
+  const r2 = makeRedactor();
+  assert.equal(r2.fn(once), once);
+  assert.deepEqual(r2.counts, {}, 'placeholders are not re-counted');
+});

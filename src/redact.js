@@ -20,27 +20,57 @@ const RULES = [
   ['url-credentials', /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:)[^\s@/]{3,}(@)/gi, (_m, a, b) => `${a}[REDACTED:password]${b}`],
   [
     'env-secret',
-    /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]*)(\s*[=:]\s*)(['"]?)[^\s'"]{8,}\3/g,
-    (_m, name, sep, q) => `${name}${sep}${q}[REDACTED:env-secret]${q}`,
+    // Name may follow an ANSI colour code directly ("\x1b[31mDB_PASSWORD=..."), where \b would not fire.
+    /(?:(?<![A-Za-z0-9_])|(?<=(?:\x1b|u001b)\[[0-9;]*m))([A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_KEY|ACCESS_KEY)[A-Za-z0-9_]*)(\s*[=:]\s*)(['"]?)(?!\[REDACTED)[^\s'"\\\x1b]{8,}\3/gi,
+    (m, name, sep, q, offset, whole) => {
+      // ALL_CAPS is env-var style: always redact. Mixed or lower case is often code (`max_tokens`,
+      // `token = parseToken(x)`), so there the value must look like a credential, not an identifier.
+      if (name !== name.toUpperCase()) {
+        const value = m.slice(name.length + sep.length + q.length, m.length - q.length);
+        if (/tokens|count|hash|limit|budget|usage|type|len/i.test(name)) return m;
+        if (!/[0-9]/.test(value) || /[()<>{}]/.test(value)) return m;
+      }
+      return `${name}${sep}${q}[REDACTED:env-secret]${q}`;
+    },
   ],
   [
     'json-secret',
-    /("[A-Za-z_]*(?:secret|token|password|passwd|api_?key|private_?key)[A-Za-z_]*"\s*:\s*")[^"]{8,}(")/gi,
+    // Tolerates any number of escaping backslashes: a JSON document stored inside a JSON string, and so on.
+    /(\\*"[A-Za-z_]*(?:secret|token|password|passwd|api_?key|private_?key)[A-Za-z_]*\\*"\s*:\s*\\*")(?!\[REDACTED)[^"\\]{8,}(\\*")/gi,
     (_m, a, b) => `${a}[REDACTED:json-secret]${b}`,
   ],
+];
+
+/** Base64 blobs are only redacted when they decode to text that the rules above would redact. */
+const looksPrintable = (t) => t.length > 0 && [...t].filter((c) => c >= ' ' && c <= '~' || c === '\n' || c === '\t').length / t.length > 0.95;
+const BASE64 = [
+  'base64-secret',
+  /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])/g,
+  (m) => {
+    let decoded;
+    try {
+      decoded = Buffer.from(m, 'base64').toString('utf8');
+    } catch {
+      return m;
+    }
+    if (!looksPrintable(decoded)) return m;
+    const changed = RULES.some(([, re, rep]) => decoded.replace(re, rep) !== decoded);
+    return changed ? '[REDACTED:base64-secret]' : m;
+  },
 ];
 
 const EMAIL = ['email', /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, () => '[REDACTED:email]'];
 
 export function makeRedactor({ emails = false } = {}) {
-  const rules = emails ? [...RULES, EMAIL] : RULES;
+  const rules = emails ? [...RULES, BASE64, EMAIL] : [...RULES, BASE64];
   const counts = {};
   const fn = (s) => {
     let out = s;
     for (const [kind, re, rep] of rules) {
       out = out.replace(re, (...a) => {
-        counts[kind] = (counts[kind] || 0) + 1;
-        return rep(...a);
+        const r = rep(...a);
+        if (r !== a[0]) counts[kind] = (counts[kind] || 0) + 1;
+        return r;
       });
     }
     return out;
