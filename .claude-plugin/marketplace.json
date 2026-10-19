@@ -1,0 +1,19 @@
+{
+  "name": "agent-carry",
+  "owner": {
+    "name": "Harsh Gajjar"
+  },
+  "metadata": {
+    "description": "Move coding-agent sessions between machines and folders"
+  },
+  "plugins": [
+    {
+      "name": "carry",
+      "version": "0.1.0",
+      "source": "./plugin",
+      "description": "/carry:share exports a redacted, path-portable session bundle; /carry:pickup imports one. Needs the carry CLI: npm i -g agent-carry",
+      "category": "productivity",
+      "tags": ["sessions", "portability", "resume"]
+    }
+  ]
+}
