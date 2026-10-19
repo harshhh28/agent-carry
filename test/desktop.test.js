@@ -141,3 +141,24 @@ test('an unreadable entry in the folder does not break registration', () => {
   const r = registerDesktopSession({ id: s.m.id, root: s.rootB, mainFile, home: s.b, dir: s.dd });
   assert.equal(r.status, 'registered');
 });
+
+test('--desktop strips terminal colour codes from newly imported text; a plain import keeps them', () => {
+  const s = setup();
+  const esc = String.fromCharCode(27);
+  const line = JSON.stringify({ type: 'user', uuid: 'c1', parentUuid: 'u2', sessionId: s.m.id, timestamp: '2026-10-14T08:01:00Z', message: { role: 'user', content: `<local-command-stdout>${esc}[1mContext${esc}[22m ${esc}[38;2;1;2;3mused${esc}[39m</local-command-stdout>` } });
+  fs.appendFileSync(s.m.main, line + '\n');
+  const bundle = path.join(s.b, 'c.carry.gz');
+  const { text } = buildBundle({ folder: s.m.folder, id: s.m.id, where: { store: s.m.folder, root: s.rootA, home: s.a } });
+  writeBundle(bundle, text);
+  const imp = (flag, root) => {
+    fs.mkdirSync(root, { recursive: true });
+    execFileSync('node', [CLI, 'import', bundle, '--project-root', root, '--claude-home', s.bClaude, '--home', s.b, ...flag], { encoding: 'utf8' });
+    const dir = path.join(s.bClaude, 'projects');
+    return fs.readdirSync(dir).map((d) => path.join(dir, d, `${s.m.id}.jsonl`)).filter(fs.existsSync).map((f) => fs.readFileSync(f, 'utf8'));
+  };
+  const keep = imp([], path.join(s.b, 'plain'))[0];
+  assert.ok(keep.includes('\\u001b['), 'plain import keeps colour codes');
+  const stripped = imp(['--desktop-dir', s.dd], path.join(s.b, 'dt')).find((t) => t !== keep);
+  assert.ok(!stripped.includes('\\u001b['));
+  assert.ok(stripped.includes('Context used'));
+});

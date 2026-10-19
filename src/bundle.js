@@ -170,11 +170,15 @@ export function readBundle(file, { passphrase } = {}) {
  * Write a bundle into a Claude home for a target project root. Returns a plan;
  * with dryRun it writes nothing.
  */
-export function importBundle({ bundle, claudeHome, root, home, dryRun = false }) {
+const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+
+/** `stripAnsi` drops terminal colour codes from incoming text, for apps that show them as literal characters. */
+export function importBundle({ bundle, claudeHome, root, home, dryRun = false, stripAnsi = false }) {
   const realRoot = realpathOr(root);
   const folder = path.join(projectsDir(claudeHome), mangle(realRoot));
   const where = { store: folder, root: realRoot, home };
   const back = fromPortable(where);
+  const text = stripAnsi ? (v) => back.fn(v).replace(ANSI, '') : back.fn;
   const id = bundle.header.sessionId;
   const plan = { id, folder, root: realRoot, files: [], warnings: [] };
   if (mangle(realRoot).length > 200) {
@@ -195,7 +199,7 @@ export function importBundle({ bundle, claudeHome, root, home, dryRun = false })
     let stat;
     if (kind === 'jsonl') {
       const incoming = rows.map((r) => {
-        const raw = r.l !== undefined ? JSON.stringify(mapStrings(r.l, back.fn)) : back.fn(r.x);
+        const raw = r.l !== undefined ? JSON.stringify(mapStrings(r.l, text)) : back.fn(r.x);
         return { raw, rec: r.l !== undefined ? JSON.parse(raw) : null };
       });
       const local = fs.existsSync(dest) ? parseJsonl(fs.readFileSync(dest, 'utf8')) : [];

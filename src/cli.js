@@ -139,7 +139,7 @@ function main() {
     if (cmd === 'import') {
       if (!pos[0]) fail('import needs a bundle file');
       const bundle = readBundle(pos[0], { passphrase });
-      const plan = importBundle({ bundle, claudeHome: home, root: cwd, home: userHome, dryRun: !!flags['dry-run'] });
+      const plan = importBundle({ bundle, claudeHome: home, root: cwd, home: userHome, dryRun: !!flags['dry-run'], stripAnsi: !!(flags.desktop || flags['desktop-dir']) });
       process.stdout.write(`${flags['dry-run'] ? 'would import' : 'imported'} ${plan.id.slice(0, 8)} into ${plan.folder}\n`);
       for (const f of plan.files.filter((f) => f.kind === 'jsonl')) {
         process.stdout.write(`  ${f.rel}: +${f.added} new, ${f.skipped} already present\n`);

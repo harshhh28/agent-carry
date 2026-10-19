@@ -38,7 +38,7 @@ carry import session.carry.gz --desktop
 ```
 
 App settings are copied from your newest existing Code-tab session, so use the Code tab at least once first.
-Restart the desktop app if the session doesn't show. Cowork is a different store and isn't supported.
+Terminal colour codes in the imported text are stripped (the app would show them as literal `[38;2;…m`). Restart the desktop app if the session doesn't show. Cowork is a different store and isn't supported.
 
 ### Sync through a shared folder
 
@@ -78,7 +78,7 @@ start and push on session end (hooks not yet exercised in a live Claude Code).
 ## Development
 
 ```
-npm test                  # 44 tests, synthetic two-machine setups
+npm test                  # 45 tests, synthetic two-machine setups
 npm run check:real        # read-only round trip of your own ~/.claude sessions
 ```
 
