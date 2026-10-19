@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Plugin installable from this repo: `/plugin install carry --marketplace harshhh28/agent-carry`.
 - `export --latest` skips sessions with no prompts, so an opened-and-closed session no longer shadows the real one.
 - `--desktop` strips terminal colour codes from newly imported text, which the app shows as literal characters.
 - `carry import --desktop` adds the session to the Claude desktop app's Code tab (macOS).

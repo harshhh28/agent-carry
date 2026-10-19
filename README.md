@@ -53,8 +53,12 @@ Projects are matched by git remote, not path. Each file has one writer, so there
 
 ### Claude Code plugin
 
-`plugin/` adds `/carry:share` and `/carry:pickup`. With `CARRY_SYNC_DIR` set, bundled hooks pull on session
-start and push on session end (hooks not yet exercised in a live Claude Code).
+```
+/plugin install carry --marketplace harshhh28/agent-carry
+```
+
+Adds `/carry:share` (export) and `/carry:pickup` (import). It calls the CLI, so `npm i -g agent-carry` first.
+With `CARRY_SYNC_DIR` set, bundled hooks pull on session start and push on session end (hooks not yet exercised live).
 
 ## Commands
 
