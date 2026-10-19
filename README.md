@@ -28,6 +28,18 @@ claude --resume <id>          # printed by import
 Encrypt a bundle with `CARRY_PASSPHRASE` or `--passphrase-file FILE` (AES-256-GCM, scrypt key). Never pass the
 passphrase as an argument.
 
+### Claude desktop app (Code tab)
+
+The Code tab lists sessions from its own index, so an imported session resumes in a terminal but doesn't appear
+there. Add `--desktop` to also write the index entry (macOS; use `--desktop-dir DIR` if you have several accounts):
+
+```
+carry import session.carry.gz --desktop
+```
+
+App settings are copied from your newest existing Code-tab session, so use the Code tab at least once first.
+Restart the desktop app if the session doesn't show. Cowork is a different store and isn't supported.
+
 ### Sync through a shared folder
 
 Point both machines at a folder your sync tool already replicates (Dropbox, iCloud, Syncthing, a git tree).
@@ -59,13 +71,14 @@ start and push on session end (hooks not yet exercised in a live Claude Code).
 - **Resume** is verified on one real session (Claude Code 2.1.299); the transcript format is internal and can change. Run `scripts/verify-resume.sh <id>` to check yours.
 - **Thinking blocks are signed**, so they travel verbatim. If one contains a credential-like string, export refuses unless you pass `--strip-thinking` (resume with stripped thinking is untested) or `--allow-thinking-secrets`. `push` skips such sessions.
 - **Redaction is best effort.** It misses passwords that read like sentences and letters-only lowercase `password=word`. Read `carry inspect` before sharing, and encrypt anything you send to someone else.
-- Not handled: Windows paths, Cowork/desktop sessions, file-history (rewind) backups.
+- `--desktop` writes the app's index format, which is internal and undocumented; it is tested against fixtures and a dry run on a real Code-tab folder, but not yet confirmed by resuming from the app itself.
+- Not handled: Windows paths, Cowork, file-history (rewind) backups.
 - `push` re-uploads pulled sessions, so a sync folder grows with devices × sessions.
 
 ## Development
 
 ```
-npm test                  # 36 tests, synthetic two-machine setups
+npm test                  # 43 tests, synthetic two-machine setups
 npm run check:real        # read-only round trip of your own ~/.claude sessions
 ```
 

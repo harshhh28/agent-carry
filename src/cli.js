@@ -7,6 +7,7 @@ import { buildBundle, writeBundle, readBundle, importBundle } from './bundle.js'
 import { parseJsonl, summarize } from './transcript.js';
 import fs from 'node:fs';
 import { pushProject, pullProject } from './sync.js';
+import { registerDesktopSession } from './desktop.js';
 
 const HELP = `carry (agent-carry): move coding-agent sessions between machines and folders. Supported agent: claude-code
 
@@ -14,7 +15,7 @@ const HELP = `carry (agent-carry): move coding-agent sessions between machines a
   carry export  <id|prefix|--latest> [-o FILE] [--project-root DIR]
                 [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
   carry inspect <bundle>
-  carry import  <bundle> [--project-root DIR] [--dry-run]
+  carry import  <bundle> [--project-root DIR] [--dry-run] [--desktop [--desktop-dir DIR]]
   carry push    <dir> [--name PROJECT] [--quiet]     sync every session of this project to a shared folder
   carry pull    <dir> [--name PROJECT] [--dry-run] [--quiet]
 
@@ -26,7 +27,7 @@ Global: --claude-home DIR (default $CLAUDE_CONFIG_DIR or ~/.claude), --home DIR
 function parseArgs(argv) {
   const flags = {};
   const pos = [];
-  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file']);
+  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file', '--desktop-dir']);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('-') && a !== '-') {
@@ -142,6 +143,16 @@ function main() {
       const side = plan.files.filter((f) => f.kind !== 'jsonl');
       if (side.length) process.stdout.write(`  sidecar files: ${side.filter((f) => f.added).length} new, ${side.filter((f) => !f.added).length} kept\n`);
       for (const w of plan.warnings) process.stderr.write(`  warning: ${w}\n`);
+      if (flags.desktop || flags['desktop-dir']) {
+        try {
+          const main = plan.files.find((f) => f.rel === 'main.jsonl');
+          const d = registerDesktopSession({ id: plan.id, root: plan.root, mainFile: main.dest, home: userHome, dir: flags['desktop-dir'], dryRun: !!flags['dry-run'] });
+          const verb = { registered: 'added to the desktop Code tab', exists: 'already in the desktop Code tab', 'would-register': 'would be added to the desktop Code tab' }[d.status];
+          process.stdout.write(`  ${verb} (${d.file}); restart the Claude desktop app if it does not appear\n`);
+        } catch (e) {
+          process.stderr.write(`  desktop: ${e.message}\n  the session itself was imported and resumes from a terminal\n`);
+        }
+      }
       if (!flags['dry-run']) process.stdout.write(`\nresume with:\n  cd ${plan.root} && claude --resume ${plan.id}\n`);
       return;
     }
