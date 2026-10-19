@@ -4,7 +4,8 @@
   "description": "Move coding-agent sessions between machines and folders: path-portable, redacted, encrypted, merge-safe bundles. Claude Code today; adapter-ready for Codex and others.",
   "type": "module",
   "bin": {
-    "carry": "src/cli.js"
+    "carry": "src/cli.js",
+    "agent-carry": "src/cli.js"
   },
   "files": [
     "src",

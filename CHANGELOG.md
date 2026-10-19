@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `agent-carry` works as a second command name for `carry`.
+- README trimmed; plugin author set.
+
 ## 0.1.0
 
 First release. Claude Code adapter.

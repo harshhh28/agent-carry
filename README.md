@@ -14,7 +14,7 @@ copied session can't be resumed elsewhere. `carry` fixes that:
 ## Usage
 
 ```
-npm i -g agent-carry
+npm i -g agent-carry          # installs `carry` (also available as `agent-carry`)
 
 # machine A, in the project folder
 carry list
