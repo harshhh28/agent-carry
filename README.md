@@ -31,7 +31,7 @@ passphrase as an argument.
 ### Claude desktop app (Code tab)
 
 The Code tab lists sessions from its own index, so an imported session resumes in a terminal but doesn't appear
-there. Add `--desktop` to also write the index entry (macOS; use `--desktop-dir DIR` if you have several accounts):
+there. Add `--desktop` to also write the index entry (macOS; with several accounts it uses the most recently used one and prints which; `--desktop-dir DIR` overrides):
 
 ```
 carry import session.carry.gz --desktop
@@ -78,7 +78,7 @@ start and push on session end (hooks not yet exercised in a live Claude Code).
 ## Development
 
 ```
-npm test                  # 43 tests, synthetic two-machine setups
+npm test                  # 44 tests, synthetic two-machine setups
 npm run check:real        # read-only round trip of your own ~/.claude sessions
 ```
 

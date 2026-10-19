@@ -79,8 +79,12 @@ function main() {
       let target;
       if (flags.latest) {
         const here = path.join(projectsDir(home), mangle(realpathOr(cwd)));
-        const s = listSessions(here)[0];
-        if (!s) fail(`no sessions for ${realpathOr(cwd)}`);
+        const all = listSessions(here);
+        if (!all.length) fail(`no sessions for ${realpathOr(cwd)}`);
+        // A session opened and closed without a prompt has nothing to carry; don't let it shadow the real one.
+        const s = all.find((x) => x.turns > 0);
+        if (!s) fail(`every session for ${realpathOr(cwd)} is empty (no prompts yet); run \`carry list\``);
+        if (s !== all[0]) process.stderr.write(`carry: skipped ${all.indexOf(s)} newer empty session(s); exporting ${s.id.slice(0, 8)}\n`);
         target = { folder: here, id: s.id };
       } else {
         if (!pos[0]) fail('export needs a session id (see `carry list`) or --latest');
@@ -149,6 +153,8 @@ function main() {
           const d = registerDesktopSession({ id: plan.id, root: plan.root, mainFile: main.dest, home: userHome, dir: flags['desktop-dir'], dryRun: !!flags['dry-run'] });
           const verb = { registered: 'added to the desktop Code tab', exists: 'already in the desktop Code tab', 'would-register': 'would be added to the desktop Code tab' }[d.status];
           process.stdout.write(`  ${verb} (${d.file}); restart the Claude desktop app if it does not appear\n`);
+          process.stdout.write(`  desktop folder: ${d.dir}\n`);
+          if (d.others.length) process.stdout.write(`  chose the most recently used of ${d.others.length + 1} account folders; pick another with --desktop-dir\n`);
         } catch (e) {
           process.stderr.write(`  desktop: ${e.message}\n  the session itself was imported and resumes from a terminal\n`);
         }

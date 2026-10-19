@@ -33,18 +33,25 @@ export function desktopRoot(home, platform = process.platform) {
 
 const subdirs = (d) => fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(d, e.name));
 
-/** The folder holding local_*.json: <root>/<account>/<org>. Must be unambiguous. */
+/**
+ * The folder holding local_*.json: <root>/<account>/<org>. Account/org folders without any session
+ * entry are ignored; if several remain, the one with the newest entry wins (and `others` says so).
+ */
 export function resolveDesktopDir({ home, dir, platform }) {
   if (dir) {
     if (!fs.existsSync(dir)) throw new Error(`desktop folder not found: ${dir}`);
-    return path.resolve(dir);
+    return { dir: path.resolve(dir), others: [] };
   }
   const root = desktopRoot(home, platform);
   if (!fs.existsSync(root)) throw new Error(`no Claude desktop Code-tab data at ${root}; open the Code tab once first`);
   const leaves = subdirs(root).flatMap(subdirs);
   if (leaves.length === 0) throw new Error(`no account folder under ${root}; open the Code tab once first`);
-  if (leaves.length > 1) throw new Error(`more than one account folder under ${root}; pick one with --desktop-dir:\n  ${leaves.join('\n  ')}`);
-  return leaves[0];
+  const used = leaves
+    .map((d) => ({ d, newest: Math.max(0, ...fs.readdirSync(d).filter((f) => /^local_.*\.json$/.test(f)).map((f) => fs.statSync(path.join(d, f)).mtimeMs)) }))
+    .filter((x) => x.newest > 0)
+    .sort((a, b) => b.newest - a.newest);
+  if (used.length === 0) throw new Error(`no Code-tab session found under ${root}; start one session in the desktop app Code tab first`);
+  return { dir: used[0].d, others: used.slice(1).map((x) => x.d) };
 }
 
 function readEntries(dir) {
@@ -108,19 +115,19 @@ export function buildDesktopEntry({ template, cliSessionId, root, transcript, no
  * Returns { status: 'registered' | 'exists' | 'would-register', file, dir }.
  */
 export function registerDesktopSession({ id, root, mainFile, home, dir, platform, dryRun = false }) {
-  const target = resolveDesktopDir({ home, dir, platform });
+  const { dir: target, others } = resolveDesktopDir({ home, dir, platform });
   const existing = readEntries(target);
   const have = existing.find(({ json }) => json.cliSessionId === id || (Array.isArray(json.priorCliSessionIds) && json.priorCliSessionIds.includes(id)));
-  if (have) return { status: 'exists', file: have.file, dir: target };
+  if (have) return { status: 'exists', file: have.file, dir: target, others };
   const template = existing.filter(({ json }) => !json.isArchived).sort((a, b) => (b.json.lastActivityAt || 0) - (a.json.lastActivityAt || 0))[0]?.json;
   if (!template) throw new Error('no existing Code-tab session to copy app settings from; start one session in the desktop app Code tab first');
 
-  if (dryRun) return { status: 'would-register', file: 'a new local_*.json', dir: target };
+  if (dryRun) return { status: 'would-register', file: 'a new local_*.json', dir: target, others };
   const entry = buildDesktopEntry({ template, cliSessionId: id, root, transcript: parseJsonl(fs.readFileSync(mainFile, 'utf8')) });
   const file = `${entry.sessionId}.json`;
   const dest = path.join(target, file);
   const tmp = `${dest}.carry-tmp`;
   fs.writeFileSync(tmp, JSON.stringify(entry), { mode: 0o600 });
   fs.renameSync(tmp, dest);
-  return { status: 'registered', file, dir: target };
+  return { status: 'registered', file, dir: target, others };
 }

@@ -43,7 +43,7 @@ function setup({ withTemplate = true } = {}) {
   const { text } = buildBundle({ folder: m.folder, id: m.id, where: { store: m.folder, root: fs.realpathSync(rootA), home: a } });
   const bundle = path.join(a, 'x.carry.gz');
   writeBundle(bundle, text);
-  return { b, rootB: fs.realpathSync(rootB), dd, m, bundle, bClaude: path.join(b, '.claude') };
+  return { rootA: fs.realpathSync(rootA), a, b, rootB: fs.realpathSync(rootB), dd, m, bundle, bClaude: path.join(b, '.claude') };
 }
 
 const run = (s, extra = []) =>
@@ -100,15 +100,36 @@ test('no template session: the transcript still imports and the desktop step exp
   assert.equal(entries(s.dd).length, 0);
 });
 
-test('desktop folder lookup refuses to guess between accounts', () => {
+test('desktop folder lookup ignores empty accounts and picks the most recently used one', () => {
   const home = tmp('carry-h-');
   const root = path.join(home, 'Library', 'Application Support', 'Claude', 'claude-code-sessions');
-  fs.mkdirSync(path.join(root, 'a1', 'o1'), { recursive: true });
-  assert.equal(resolveDesktopDir({ home, platform: 'darwin' }), path.join(root, 'a1', 'o1'));
-  fs.mkdirSync(path.join(root, 'a2', 'o2'), { recursive: true });
-  assert.throws(() => resolveDesktopDir({ home, platform: 'darwin' }), /more than one account folder/);
   assert.throws(() => resolveDesktopDir({ home: tmp(), platform: 'darwin' }), /open the Code tab once/);
+  fs.mkdirSync(path.join(root, 'a1', 'o1'), { recursive: true });
+  assert.throws(() => resolveDesktopDir({ home, platform: 'darwin' }), /start one session/);
+  const put = (d, secondsAgo) => {
+    fs.mkdirSync(path.join(root, d), { recursive: true });
+    const f = path.join(root, d, 'local_x.json');
+    fs.writeFileSync(f, '{}');
+    const t = (Date.now() - secondsAgo * 1000) / 1000;
+    fs.utimesSync(f, t, t);
+  };
+  put('a1/o1', 500);
+  assert.deepEqual(resolveDesktopDir({ home, platform: 'darwin' }), { dir: path.join(root, 'a1', 'o1'), others: [] });
+  put('a2/o2', 5);
+  fs.mkdirSync(path.join(root, 'a3', 'o3'), { recursive: true });
+  const r = resolveDesktopDir({ home, platform: 'darwin' });
+  assert.equal(r.dir, path.join(root, 'a2', 'o2'));
+  assert.deepEqual(r.others, [path.join(root, 'a1', 'o1')]);
   assert.throws(() => resolveDesktopDir({ home, platform: 'linux' }), /only implemented for macOS/);
+});
+
+test('export --latest skips a newer empty session', () => {
+  const s = setup();
+  const empty = path.join(s.m.folder, 'eeeeeeee-0000-0000-0000-000000000000.jsonl');
+  fs.writeFileSync(empty, JSON.stringify({ type: 'mode', mode: 'default' }) + '\n');
+  const out = path.join(s.b, 'latest.carry.gz');
+  const r = execFileSync('node', [CLI, 'export', '--latest', '--project-root', s.rootA, '--claude-home', s.m.claude, '-o', out], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.match(r, new RegExp(s.m.id.slice(0, 8)));
 });
 
 test('an unreadable entry in the folder does not break registration', () => {

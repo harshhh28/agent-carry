@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `export --latest` skips sessions with no prompts, so an opened-and-closed session no longer shadows the real one.
 - `carry import --desktop` adds the session to the Claude desktop app's Code tab (macOS).
 - `agent-carry` works as a second command name for `carry`.
 - README trimmed; plugin author set.
