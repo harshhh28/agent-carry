@@ -1,6 +1,6 @@
 {
   "name": "agent-carry",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Move coding-agent sessions between machines and folders: path-portable, redacted, encrypted, merge-safe bundles. Claude Code today; adapter-ready for Codex and others.",
   "type": "module",
   "bin": {
