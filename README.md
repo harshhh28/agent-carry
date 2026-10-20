@@ -31,14 +31,16 @@ passphrase as an argument.
 ### Claude desktop app (Code tab)
 
 The Code tab lists sessions from its own index, so an imported session resumes in a terminal but doesn't appear
-there. Add `--desktop` to also write the index entry (macOS; with several accounts it uses the most recently used one and prints which; `--desktop-dir DIR` overrides):
+there. Add `--desktop` to also write the index entry (macOS; the signed-in account is used):
 
 ```
 carry import session.carry.gz --desktop
 ```
 
-App settings are copied from your newest existing Code-tab session, so use the Code tab at least once first.
-Terminal colour codes in the imported text are stripped (the app would show them as literal `[38;2;…m`). Restart the desktop app if the session doesn't show. Cowork is a different store and isn't supported.
+App settings are copied from that account's newest Code-tab session (or, for a new account, another account's), so use the Code tab at least once first.
+Terminal colour codes in the imported text are stripped (the app would show them as literal `[38;2;…m`). Restart the desktop app if the session doesn't show.
+
+The session is added to the account that is signed in (read from the app's log). If it can't tell, or you want another account, use `--desktop-dir DIR`; `carry desktop-dirs` lists the choices. A freshly signed-in account with no sessions borrows only app-level settings from another account, never its connectors or permissions. Cowork is a different store and isn't supported.
 
 ### Sync through a shared folder
 
@@ -57,17 +59,22 @@ Projects are matched by git remote, not path. Each file has one writer, so there
 /plugin install carry --marketplace harshhh28/agent-carry
 ```
 
-Adds `/carry:share` (export) and `/carry:pickup` (import). It calls the CLI, so `npm i -g agent-carry` first.
-With `CARRY_SYNC_DIR` set, bundled hooks pull on session start and push on session end (hooks not yet exercised live).
+Needs `npm i -g agent-carry` (or falls back to `npx`). Works the same in the terminal and in the desktop app's Code tab.
+
+- `/carry:share` asks which session, whether to encrypt (generate a passphrase, use your own file, or type one), and where to save.
+- `/carry:pickup` lists bundles in this folder, ~/Downloads and ~/Desktop, then asks which one, the passphrase source, which folder to import into, and whether to add it to the desktop app (and which account).
+
+Passphrases are never put on a command line. A generated one is saved beside the bundle as `FILE.pass` (mode 600) and never printed; a typed one is stored in that conversation's history, so use it only for throwaway passphrases. With `CARRY_SYNC_DIR` set, bundled hooks pull on session start and push on session end (hooks not yet exercised live).
 
 ## Commands
 
 | command | |
 |---|---|
 | `carry list [--all]` | sessions for this folder, or all |
-| `carry export <id\|--latest> [-o FILE]` | `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
+| `carry export <id\|--latest> [-o FILE]` | `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
 | `carry inspect FILE` | header, parts, redaction counts |
 | `carry import FILE [--project-root DIR] [--dry-run]` | write into the target folder's session store |
+| `carry bundles` / `carry desktop-dirs` | bundle files nearby; desktop-app account folders |
 | `carry push DIR` / `carry pull DIR` | folder sync (`--name`, `--dry-run`, `--quiet`) |
 
 ## Limits
@@ -82,7 +89,7 @@ With `CARRY_SYNC_DIR` set, bundled hooks pull on session start and push on sessi
 ## Development
 
 ```
-npm test                  # 45 tests, synthetic two-machine setups
+npm test                  # 49 tests, synthetic two-machine setups
 npm run check:real        # read-only round trip of your own ~/.claude sessions
 ```
 

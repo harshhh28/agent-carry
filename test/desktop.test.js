@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmp, fakeMachine } from './helpers.js';
 import { buildBundle, writeBundle } from '../src/bundle.js';
-import { registerDesktopSession, resolveDesktopDir } from '../src/desktop.js';
+import { registerDesktopSession, resolveDesktopDir, listDesktopDirs } from '../src/desktop.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 
@@ -37,7 +37,7 @@ function setup({ withTemplate = true } = {}) {
   fs.mkdirSync(rootA, { recursive: true });
   fs.mkdirSync(rootB, { recursive: true });
   const m = fakeMachine({ userHome: a, projectRoot: fs.realpathSync(rootA) });
-  const dd = path.join(b, 'desktop', 'acct', 'org');
+  const dd = path.join(b, 'Library', 'Application Support', 'Claude', 'claude-code-sessions', 'acct', 'org');
   fs.mkdirSync(dd, { recursive: true });
   if (withTemplate) fs.writeFileSync(path.join(dd, 'local_template.json'), JSON.stringify(TEMPLATE));
   const { text } = buildBundle({ folder: m.folder, id: m.id, where: { store: m.folder, root: fs.realpathSync(rootA), home: a } });
@@ -100,27 +100,42 @@ test('no template session: the transcript still imports and the desktop step exp
   assert.equal(entries(s.dd).length, 0);
 });
 
-test('desktop folder lookup ignores empty accounts and picks the most recently used one', () => {
+test('desktop folder lookup: the signed-in account from the app log wins; several folders and no signal refuses', () => {
   const home = tmp('carry-h-');
   const root = path.join(home, 'Library', 'Application Support', 'Claude', 'claude-code-sessions');
   assert.throws(() => resolveDesktopDir({ home: tmp(), platform: 'darwin' }), /open the Code tab once/);
-  fs.mkdirSync(path.join(root, 'a1', 'o1'), { recursive: true });
-  assert.throws(() => resolveDesktopDir({ home, platform: 'darwin' }), /start one session/);
-  const put = (d, secondsAgo) => {
-    fs.mkdirSync(path.join(root, d), { recursive: true });
-    const f = path.join(root, d, 'local_x.json');
-    fs.writeFileSync(f, '{}');
-    const t = (Date.now() - secondsAgo * 1000) / 1000;
-    fs.utimesSync(f, t, t);
-  };
-  put('a1/o1', 500);
-  assert.deepEqual(resolveDesktopDir({ home, platform: 'darwin' }), { dir: path.join(root, 'a1', 'o1'), others: [] });
-  put('a2/o2', 5);
-  fs.mkdirSync(path.join(root, 'a3', 'o3'), { recursive: true });
+  const a1 = '11111111-1111-1111-1111-111111111111';
+  const a2 = '22222222-2222-2222-2222-222222222222';
+  const o = '0a0a0a0a-0000-0000-0000-000000000000';
+  fs.mkdirSync(path.join(root, a1, o), { recursive: true });
+  assert.equal(resolveDesktopDir({ home, platform: 'darwin' }).dir, path.join(root, a1, o), 'a single folder needs no signal');
+  fs.mkdirSync(path.join(root, a2, o), { recursive: true });
+  fs.writeFileSync(path.join(root, a1, o, 'local_x.json'), '{}');
+  assert.throws(() => resolveDesktopDir({ home, platform: 'darwin' }), /cannot tell which desktop account is signed in/, 'old sessions alone are not a signal');
+  const logs = path.join(home, 'Library', 'Logs', 'Claude');
+  fs.mkdirSync(logs, { recursive: true });
+  fs.writeFileSync(logs + '/main.log', `x scratch-workspaces/${a1}/${o}/s1\ny scratch-workspaces/${a2}/${o}/s2\n`);
   const r = resolveDesktopDir({ home, platform: 'darwin' });
-  assert.equal(r.dir, path.join(root, 'a2', 'o2'));
-  assert.deepEqual(r.others, [path.join(root, 'a1', 'o1')]);
+  assert.equal(r.dir, path.join(root, a2, o), 'the account named last in the log is the signed-in one');
+  assert.match(r.how, /signed-in/);
+  assert.deepEqual(listDesktopDirs({ home, platform: 'darwin' }).map((x) => [x.entries, x.active]).sort(), [[0, true], [1, false]]);
   assert.throws(() => resolveDesktopDir({ home, platform: 'linux' }), /only implemented for macOS/);
+});
+
+test('a freshly signed-in account borrows app settings from another account, but not its connectors or permissions', () => {
+  const s = setup({ withTemplate: false });
+  const other = path.join(path.dirname(path.dirname(s.dd)), 'other-acct', 'org');
+  fs.mkdirSync(other, { recursive: true });
+  fs.writeFileSync(path.join(other, 'local_template.json'), JSON.stringify(TEMPLATE));
+  const out = run(s, ['--desktop-dir', s.dd]);
+  assert.match(out, /settings were borrowed/);
+  const [f] = entries(s.dd);
+  const e = JSON.parse(fs.readFileSync(path.join(s.dd, f), 'utf8'));
+  assert.equal(e.cliSessionId, s.m.id);
+  assert.deepEqual(e.enabledMcpTools, {});
+  assert.deepEqual(e.remoteMcpServersConfig, []);
+  assert.equal(e.permissionMode, 'default');
+  assert.deepEqual(e.promptAppendSnapshot, TEMPLATE.promptAppendSnapshot);
 });
 
 test('export --latest skips a newer empty session', () => {

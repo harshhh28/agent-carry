@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Plugin 0.2.0: `/carry:share` and `/carry:pickup` ask what they need (session, encryption, passphrase source, destination folder, desktop app and account) instead of expecting flags. Needs the CLI from this release.
+- `export --generate-passphrase` (saved to `FILE.pass`, never printed); `carry bundles`; `carry desktop-dirs`.
+- `--desktop` targets the signed-in account (read from the app's log) instead of any folder with sessions, and works for a freshly signed-in account by borrowing only app-level settings.
+
 - Plugin installable from this repo: `/plugin install carry --marketplace harshhh28/agent-carry`.
 - `export --latest` skips sessions with no prompts, so an opened-and-closed session no longer shadows the real one.
 - `--desktop` strips terminal colour codes from newly imported text, which the app shows as literal characters.

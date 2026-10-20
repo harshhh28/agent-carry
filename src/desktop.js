@@ -14,6 +14,10 @@ import { parseJsonl, summarize } from './transcript.js';
  * invented, so a Code tab that has never been used cannot be targeted.
  */
 
+// Settings that belong to the app, not to an account: safe to borrow from a session of another account.
+const GENERIC_KEYS = ['effort', 'classifierSummaryEnabled', 'reportFindingsCard', 'promptAppendSnapshot', 'chromePermissionMode'];
+
+// Everything below also reflects one account's MCP connectors and tool toggles, so it is copied only from the same account.
 const KEEP_FROM_TEMPLATE = [
   'effort',
   'permissionMode',
@@ -34,24 +38,58 @@ export function desktopRoot(home, platform = process.platform) {
 const subdirs = (d) => fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(d, e.name));
 
 /**
- * The folder holding local_*.json: <root>/<account>/<org>. Account/org folders without any session
- * entry are ignored; if several remain, the one with the newest entry wins (and `others` says so).
+ * The app's most recently active account/org, read from its own log: the app starts every session under
+ * scratch-workspaces/<account>/<org>/, so the last such path names whoever is signed in now.
+ */
+export function activeAccountFromLog(home, platform = process.platform) {
+  if (platform !== 'darwin') return null;
+  const log = path.join(home, 'Library', 'Logs', 'Claude', 'main.log');
+  try {
+    const size = fs.statSync(log).size;
+    const fd = fs.openSync(log, 'r');
+    const len = Math.min(size, 4 * 1024 * 1024);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    fs.closeSync(fd);
+    const all = [...buf.toString('utf8').matchAll(/scratch-workspaces\/([0-9a-f-]{36})\/([0-9a-f-]{36})/g)];
+    const last = all[all.length - 1];
+    return last ? { account: last[1], org: last[2] } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every <root>/<account>/<org> folder, with how many sessions it holds and whether it is the signed-in one. */
+export function listDesktopDirs({ home, platform }) {
+  const root = desktopRoot(home, platform);
+  if (!fs.existsSync(root)) throw new Error(`no Claude desktop Code-tab data at ${root}; open the Code tab once first`);
+  const active = activeAccountFromLog(home, platform);
+  return subdirs(root).flatMap((a) =>
+    subdirs(a).map((d) => {
+      const files = fs.readdirSync(d).filter((f) => /^local_.*\.json$/.test(f));
+      const newest = Math.max(0, ...files.map((f) => fs.statSync(path.join(d, f)).mtimeMs));
+      return { dir: d, account: path.basename(a), org: path.basename(d), entries: files.length, newest, active: !!active && active.account === path.basename(a) && active.org === path.basename(d) };
+    }),
+  );
+}
+
+/**
+ * Which folder to write to: --desktop-dir if given, else the signed-in account/org (from the app log), else
+ * the only folder if there is just one. With several and no signal it refuses rather than guess, because a
+ * session written into another account's folder would never be seen.
  */
 export function resolveDesktopDir({ home, dir, platform }) {
   if (dir) {
     if (!fs.existsSync(dir)) throw new Error(`desktop folder not found: ${dir}`);
-    return { dir: path.resolve(dir), others: [] };
+    return { dir: path.resolve(dir), how: 'given' };
   }
-  const root = desktopRoot(home, platform);
-  if (!fs.existsSync(root)) throw new Error(`no Claude desktop Code-tab data at ${root}; open the Code tab once first`);
-  const leaves = subdirs(root).flatMap(subdirs);
-  if (leaves.length === 0) throw new Error(`no account folder under ${root}; open the Code tab once first`);
-  const used = leaves
-    .map((d) => ({ d, newest: Math.max(0, ...fs.readdirSync(d).filter((f) => /^local_.*\.json$/.test(f)).map((f) => fs.statSync(path.join(d, f)).mtimeMs)) }))
-    .filter((x) => x.newest > 0)
-    .sort((a, b) => b.newest - a.newest);
-  if (used.length === 0) throw new Error(`no Code-tab session found under ${root}; start one session in the desktop app Code tab first`);
-  return { dir: used[0].d, others: used.slice(1).map((x) => x.d) };
+  const all = listDesktopDirs({ home, platform });
+  if (all.length === 0) throw new Error('no account folder in the desktop app data; open the Code tab once first');
+  const active = all.find((x) => x.active);
+  if (active) return { dir: active.dir, how: 'signed-in account (from the app log)' };
+  if (all.length === 1) return { dir: all[0].dir, how: 'only account folder' };
+  const rows = all.map((x) => `  ${x.dir}  (${x.entries} session${x.entries === 1 ? '' : 's'})`).join('\n');
+  throw new Error(`cannot tell which desktop account is signed in; pick one with --desktop-dir:\n${rows}`);
 }
 
 function readEntries(dir) {
@@ -105,7 +143,16 @@ export function buildDesktopEntry({ template, cliSessionId, root, transcript, no
     sessionPermissionUpdates: [],
     spawnSeed: {},
   };
-  for (const k of KEEP_FROM_TEMPLATE) if (template[k] !== undefined) entry[k] = template[k];
+  if (template.generic) {
+    // Another account's session: take app settings only. Connectors and permission grants are account-specific,
+    // and the safest permission mode is the default one.
+    for (const k of GENERIC_KEYS) if (template[k] !== undefined) entry[k] = template[k];
+    entry.permissionMode = 'default';
+    entry.enabledMcpTools = {};
+    entry.remoteMcpServersConfig = [];
+  } else {
+    for (const k of KEEP_FROM_TEMPLATE) if (template[k] !== undefined) entry[k] = template[k];
+  }
   return entry;
 }
 
@@ -115,19 +162,30 @@ export function buildDesktopEntry({ template, cliSessionId, root, transcript, no
  * Returns { status: 'registered' | 'exists' | 'would-register', file, dir }.
  */
 export function registerDesktopSession({ id, root, mainFile, home, dir, platform, dryRun = false }) {
-  const { dir: target, others } = resolveDesktopDir({ home, dir, platform });
+  const { dir: target, how } = resolveDesktopDir({ home, dir, platform });
   const existing = readEntries(target);
   const have = existing.find(({ json }) => json.cliSessionId === id || (Array.isArray(json.priorCliSessionIds) && json.priorCliSessionIds.includes(id)));
-  if (have) return { status: 'exists', file: have.file, dir: target, others };
-  const template = existing.filter(({ json }) => !json.isArchived).sort((a, b) => (b.json.lastActivityAt || 0) - (a.json.lastActivityAt || 0))[0]?.json;
-  if (!template) throw new Error('no existing Code-tab session to copy app settings from; start one session in the desktop app Code tab first');
+  if (have) return { status: 'exists', file: have.file, dir: target, how, entryCwd: have.json.cwd };
+  const newest = (list) => list.filter(({ json }) => !json.isArchived).sort((a, b) => (b.json.lastActivityAt || 0) - (a.json.lastActivityAt || 0))[0]?.json;
+  let template = newest(existing);
+  let borrowed = false;
+  if (!template) {
+    // A freshly signed-in account has no sessions yet; borrow app-level settings from any other account's.
+    const others = listDesktopDirs({ home, platform }).filter((x) => x.dir !== target).flatMap((x) => readEntries(x.dir));
+    const t = newest(others);
+    if (t) {
+      template = { ...t, generic: true };
+      borrowed = true;
+    }
+  }
+  if (!template) throw new Error('no existing Code-tab session anywhere to copy app settings from; start one session in the desktop app Code tab first');
+  if (dryRun) return { status: 'would-register', file: 'a new local_*.json', dir: target, how, borrowed };
 
-  if (dryRun) return { status: 'would-register', file: 'a new local_*.json', dir: target, others };
   const entry = buildDesktopEntry({ template, cliSessionId: id, root, transcript: parseJsonl(fs.readFileSync(mainFile, 'utf8')) });
   const file = `${entry.sessionId}.json`;
   const dest = path.join(target, file);
   const tmp = `${dest}.carry-tmp`;
   fs.writeFileSync(tmp, JSON.stringify(entry), { mode: 0o600 });
   fs.renameSync(tmp, dest);
-  return { status: 'registered', file, dir: target, others };
+  return { status: 'registered', file, dir: target, how, borrowed };
 }

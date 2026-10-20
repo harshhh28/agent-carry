@@ -6,17 +6,22 @@ import { projectFolders, listSessions, findSession } from './store.js';
 import { buildBundle, writeBundle, readBundle, importBundle } from './bundle.js';
 import { parseJsonl, summarize } from './transcript.js';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { isEncrypted } from './crypto.js';
 import { pushProject, pullProject } from './sync.js';
-import { registerDesktopSession } from './desktop.js';
+import { registerDesktopSession, listDesktopDirs } from './desktop.js';
 
 const HELP = `carry (agent-carry): move coding-agent sessions between machines and folders. Supported agent: claude-code
 
   carry list    [--all] [--project DIR]
   carry export  <id|prefix|--latest> [-o FILE] [--project-root DIR]
                 [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
+                [--generate-passphrase]   encrypt with a random passphrase saved next to the bundle as FILE.pass
+  carry bundles                                            bundle files in this folder, ~/Downloads and ~/Desktop
   carry inspect <bundle>
   carry import  <bundle> [--project-root DIR] [--dry-run] [--desktop [--desktop-dir DIR]]
   carry push    <dir> [--name PROJECT] [--quiet]     sync every session of this project to a shared folder
+  carry desktop-dirs                                       desktop-app account folders (which one is signed in)
   carry pull    <dir> [--name PROJECT] [--dry-run] [--quiet]
 
 Encryption (export, import, push, pull): set CARRY_PASSPHRASE or pass --passphrase-file FILE.
@@ -53,7 +58,7 @@ function main() {
   const home = flags['claude-home'] ? path.resolve(flags['claude-home']) : claudeHome();
   const userHome = flags.home ? path.resolve(flags.home) : os.homedir();
   const cwd = flags['project-root'] || flags.project || process.cwd();
-  const passphrase = flags['passphrase-file'] ? fs.readFileSync(flags['passphrase-file'], 'utf8').replace(/\r?\n$/, '') : process.env.CARRY_PASSPHRASE || undefined;
+  let passphrase = flags['passphrase-file'] ? fs.readFileSync(flags['passphrase-file'], 'utf8').replace(/\r?\n$/, '') : process.env.CARRY_PASSPHRASE || undefined;
   const say = (m) => flags.quiet || process.stdout.write(`${m}\n`);
 
   try {
@@ -111,13 +116,21 @@ function main() {
         stripThinking: !!flags['strip-thinking'],
         allowThinkingSecrets: !!flags['allow-thinking-secrets'],
       });
+      let generated = null;
+      if (flags['generate-passphrase']) {
+        if (passphrase) fail('use either --generate-passphrase or a passphrase of your own, not both');
+        generated = crypto.randomBytes(18).toString('base64url');
+        passphrase = generated;
+      }
       const out = flags.o || flags.out || `${target.id.slice(0, 8)}${passphrase ? '.carry.enc' : '.carry.gz'}`;
       writeBundle(out, text, { passphrase });
+      if (generated) fs.writeFileSync(`${out}.pass`, `${generated}\n`, { mode: 0o600 });
       const red = Object.entries(header.redaction.counts || {}).map(([k, v]) => `${k}:${v}`).join(' ') || 'none found';
       process.stdout.write(
         `exported ${header.sessionId.slice(0, 8)} "${header.title ?? 'untitled'}" -> ${out}\n` +
           `  parts: ${header.parts.length}   paths rewritten: ${header.pathsRewritten}\n` +
-          `  redacted: ${header.redaction.enabled ? red : 'OFF'}   encrypted: ${passphrase ? 'yes' : 'no'}\n`,
+          `  redacted: ${header.redaction.enabled ? red : 'OFF'}   encrypted: ${passphrase ? 'yes' : 'no'}\n` +
+          (generated ? `  passphrase saved to ${out}.pass (not printed); share it by a different channel than the bundle\n` : ''),
       );
       if (header.residualHomePaths > 0) {
         process.stderr.write(`  warning: ${header.residualHomePaths} other absolute home path(s) remain in the bundle (other users or tools). Review with \`carry inspect\`.\n`);
@@ -126,6 +139,48 @@ function main() {
         process.stderr.write(`  warning: ${header.thinking.possibleSecrets} credential-like string(s) in ${header.thinking.blocks} signed thinking block(s). These cannot be redacted without invalidating them; re-export with --strip-thinking.\n`);
       }
       if (header.skippedLarge.length) process.stderr.write(`  warning: ${header.skippedLarge.length} file(s) over 20MB were not included\n`);
+      return;
+    }
+
+    if (cmd === 'bundles') {
+      const seen = new Set();
+      const found = [];
+      for (const dir of [process.cwd(), path.join(userHome, 'Downloads'), path.join(userHome, 'Desktop')]) {
+        let names = [];
+        try {
+          names = fs.readdirSync(dir);
+        } catch {
+          continue;
+        }
+        for (const n of names.filter((n) => /\.carry\.(gz|enc)$/.test(n))) {
+          const file = path.join(dir, n);
+          if (seen.has(file)) continue;
+          seen.add(file);
+          found.push({ file, st: fs.statSync(file) });
+        }
+      }
+      found.sort((a, b) => b.st.mtimeMs - a.st.mtimeMs);
+      for (const { file, st } of found.slice(0, 10)) {
+        const enc = isEncrypted(fs.readFileSync(file).subarray(0, 64));
+        let what = 'encrypted: needs its passphrase';
+        if (!enc) {
+          try {
+            const { header } = readBundle(file, {});
+            what = `"${header.title ?? 'untitled'}", ${header.turns} turn(s), session ${header.sessionId.slice(0, 8)}`;
+          } catch {
+            what = 'unreadable';
+          }
+        }
+        process.stdout.write(`${file}\n    ${enc ? 'encrypted' : 'plain'}  ${st.mtime.toISOString().slice(0, 16).replace('T', ' ')}  ${(st.size / 1024).toFixed(1)} KB  ${what}\n`);
+      }
+      if (!found.length) process.stdout.write('no .carry.gz or .carry.enc files found here, in ~/Downloads or ~/Desktop\n');
+      return;
+    }
+
+    if (cmd === 'desktop-dirs') {
+      const list = listDesktopDirs({ home: userHome });
+      for (const x of list) process.stdout.write(`${x.active ? '* signed in' : '  other    '}  ${x.entries} session${x.entries === 1 ? ' ' : 's'}  ${x.dir}\n`);
+      if (!list.length) process.stdout.write('no desktop account folders found\n');
       return;
     }
 
@@ -154,7 +209,8 @@ function main() {
           const verb = { registered: 'added to the desktop Code tab', exists: 'already in the desktop Code tab', 'would-register': 'would be added to the desktop Code tab' }[d.status];
           process.stdout.write(`  ${verb} (${d.file}); restart the Claude desktop app if it does not appear\n`);
           process.stdout.write(`  desktop folder: ${d.dir}\n`);
-          if (d.others.length) process.stdout.write(`  chose the most recently used of ${d.others.length + 1} account folders; pick another with --desktop-dir\n`);
+          if (d.status === 'exists' && d.entryCwd && d.entryCwd !== plan.root) process.stdout.write(`  note: that Code-tab entry points at ${d.entryCwd}, not ${plan.root}\n`);
+          process.stdout.write(`  chosen as: ${d.how}${d.borrowed ? '; this account has no sessions yet, so app settings were borrowed from another account' : ''}\n`);
         } catch (e) {
           process.stderr.write(`  desktop: ${e.message}\n  the session itself was imported and resumes from a terminal\n`);
         }
