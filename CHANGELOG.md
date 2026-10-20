@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Plugin 0.2.1: commands check the CLI version first and say how to upgrade if it is older, instead of aborting on an unknown-command error.
 - Plugin 0.2.0: `/carry:share` and `/carry:pickup` ask what they need (session, encryption, passphrase source, destination folder, desktop app and account) instead of expecting flags. Needs the CLI from this release.
 - `export --generate-passphrase` (saved to `FILE.pass`, never printed); `carry bundles`; `carry desktop-dirs`.
 - `--desktop` targets the signed-in account (read from the app's log) instead of any folder with sessions, and works for a freshly signed-in account by borrowing only app-level settings.

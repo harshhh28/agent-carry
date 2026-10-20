@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "carry",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./plugin",
       "description": "/carry:share exports a redacted, path-portable session bundle; /carry:pickup imports one. Needs the carry CLI: npm i -g agent-carry",
       "category": "productivity",

@@ -4,13 +4,17 @@ argument-hint: [optional carry export flags, e.g. -o FILE --strip-thinking]
 allowed-tools: Bash(carry:*), Bash(npx -y agent-carry@latest:*), AskUserQuestion
 ---
 
+carry CLI version (this command needs 0.2.0 or newer): !`carry --version 2>&1 || echo 'not installed'`
+
 Sessions in this folder, newest first (the top one is usually this conversation):
 
-!`carry list 2>&1 || npx -y agent-carry@latest list 2>&1`
+!`carry list 2>&1 || npx -y agent-carry@latest list 2>&1 || true`
 
 Arguments the user typed: $ARGUMENTS
 
-You are exporting one session with the `carry` CLI. If `carry` was not found above, use `npx -y agent-carry@latest` in its place; if that also fails, tell the user to run `npm i -g agent-carry` and stop. If a command below says it is unknown, the CLI is old: tell the user to run `npm i -g agent-carry@latest`.
+**Step 0.** Look at the version line above. If it says "not installed" or shows anything older than 0.2.0, stop and say exactly this, with nothing else: "This command needs the carry CLI 0.2.0 or newer. Run `npm i -g agent-carry@latest`, then try again." (If that install still gives an older version, 0.2.0 has not been published to npm yet.) Any error text shown in the listings below comes from the same cause; do not try to work around it.
+
+You are exporting one session with the `carry` CLI.
 
 Ask with the AskUserQuestion tool, one short question at a time, and skip any question the typed arguments already answer. If AskUserQuestion is not available, ask the same questions as a short numbered list in plain text and wait for the reply.
 
