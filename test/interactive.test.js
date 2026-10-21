@@ -98,3 +98,18 @@ test('export with no id shows a numbered list and exports the chosen session, fr
   assert.throws(() => run(['export', '-o', path.join(s.a, 'x.carry.gz'), '--claude-home', s.m.claude, '--home', s.a], { cwd, input: '9\n' }), /not one of the numbers/);
   assert.throws(() => run(['export', '-o', path.join(s.a, 'y.carry.gz'), '--claude-home', s.m.claude, '--home', s.a], { cwd, input: '' }), /no session chosen/);
 });
+
+test('list: a single folder via --project, and --match narrows by title or folder', () => {
+  const s = twoSessionMachine();
+  const base = ['--claude-home', s.m.claude, '--home', s.a];
+  const here = run(['list', '--project', s.root, ...base]);
+  assert.match(here, /aaaaaaaa/);
+  assert.match(here, /11111111/);
+  assert.ok(!run(['list', '--project', path.join(s.a, 'elsewhere'), ...base]).includes('aaaaaaaa'));
+  assert.match(run(['list', '--project', path.join(s.a, 'elsewhere'), ...base]), /no sessions found .*; try: carry list --all/);
+  const byTitle = run(['list', '--all', '--match', 'login page', ...base]);
+  assert.match(byTitle, /aaaaaaaa/);
+  assert.ok(!byTitle.includes('cccccccc'));
+  assert.match(run(['list', '--all', '--match', 'work/app', ...base]), /cccccccc/, 'matches the folder too');
+  assert.match(run(['list', '--all', '--match', 'zzz-nothing', ...base]), /no sessions found for any project matching "zzz-nothing"/);
+});

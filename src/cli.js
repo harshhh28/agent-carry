@@ -14,8 +14,10 @@ import { recentSessions, formatSession } from './browse.js';
 
 const HELP = `carry (agent-carry): move coding-agent sessions between machines and folders. Supported agent: claude-code
 
-  carry list    [--all [--limit N|all] [--everything]]   --all: recent sessions from every folder, with desktop-app titles
-  carry export  [id|prefix|--latest] [-o FILE]   no id: pick from a numbered list of recent sessions [--project-root DIR]
+  carry list    [--all] [--project DIR] [--match TEXT] [--limit N|all] [--everything]
+                (this folder, or --project DIR; --all: recent sessions from every folder, with desktop-app titles;
+                 --match: only rows whose title, folder or id contains TEXT)
+  carry export  [id|prefix|--latest] [-o FILE]   no id: pick from a numbered list (also takes --project DIR, --match TEXT, --limit N) [--project-root DIR]
                 [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
                 [--generate-passphrase]   encrypt with a random passphrase saved next to the bundle as FILE.pass
   carry bundles                                            bundle files in this folder, ~/Downloads and ~/Desktop
@@ -33,7 +35,7 @@ Global: --claude-home DIR (default $CLAUDE_CONFIG_DIR or ~/.claude), --home DIR
 function parseArgs(argv) {
   const flags = {};
   const pos = [];
-  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file', '--desktop-dir', '--limit']);
+  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file', '--desktop-dir', '--limit', '--match']);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('-') && a !== '-') {
@@ -89,21 +91,14 @@ function main() {
     if (!cmd || cmd === 'help' || flags.help) return process.stdout.write(HELP);
 
     if (cmd === 'list') {
-      if (flags.all) {
-        const limit = flags.limit === 'all' ? Infinity : Number(flags.limit) || 20;
-        const list = recentSessions({ home, userHome, limit, everything: !!flags.everything });
-        for (const x of list) process.stdout.write(`${formatSession(x)}\n`);
-        if (!list.length) process.stdout.write('no sessions found for any project\n');
-        else if (list.length === limit) process.stdout.write(`(showing the ${limit} most recent; --limit N or --limit all for more)\n`);
-        return;
-      }
-      const here = path.join(projectsDir(home), mangle(realpathOr(cwd)));
-      const sessions = listSessions(here);
-      for (const s of sessions) {
-        const when = new Date(s.mtimeMs).toISOString().slice(0, 16).replace('T', ' ');
-        process.stdout.write(`${s.id.slice(0, 8)}  ${when}  ${String(s.turns).padStart(3)} turns  ${s.title ?? '(untitled)'}\n`);
-      }
-      if (!sessions.length) process.stdout.write(`no sessions found for ${realpathOr(cwd)}; try: carry list --all\n`);
+      // Default: this folder (or --project DIR), every session. --all: recent sessions from every folder.
+      const scope = flags.all ? undefined : [path.join(projectsDir(home), mangle(realpathOr(cwd)))];
+      const limit = flags.limit === 'all' ? Infinity : Number(flags.limit) || (flags.all ? 20 : Infinity);
+      const list = recentSessions({ home, userHome, limit, everything: !!flags.everything, folders: scope, match: flags.match });
+      for (const x of list) process.stdout.write(`${formatSession(x)}\n`);
+      const where = flags.all ? 'any project' : realpathOr(cwd);
+      if (!list.length) process.stdout.write(`no sessions found for ${where}${flags.match ? ` matching "${flags.match}"` : ''}${flags.all ? '' : '; try: carry list --all'}\n`);
+      else if (list.length === limit) process.stdout.write(`(showing the ${limit} most recent; --limit N or --limit all for more)\n`);
       return;
     }
 
@@ -121,8 +116,9 @@ function main() {
         target = { folder: here, id: s.id };
       } else if (!pos[0]) {
         // No id and no --latest: pick from recent sessions anywhere, so nobody needs to know where they are stored.
-        const list = recentSessions({ home, userHome, limit: 10 });
-        if (!list.length) fail('no sessions found; nothing to export');
+        const scope = flags.project ? [path.join(projectsDir(home), mangle(realpathOr(flags.project)))] : undefined;
+        const list = recentSessions({ home, userHome, limit: Number(flags.limit) || 10, folders: scope, match: flags.match });
+        if (!list.length) fail('no sessions found' + (flags.match ? ` matching "${flags.match}"` : '') + '; nothing to export');
         list.forEach((x, i) => process.stdout.write(`${formatSession(x, i + 1)}\n`));
         process.stdout.write('Export which one? [1] ');
         const ans = readLine();

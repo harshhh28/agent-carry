@@ -20,7 +20,7 @@ You are exporting one session with the `carry` CLI.
 
 Ask with the AskUserQuestion tool, one short question at a time, and skip any question the typed arguments already answer. If AskUserQuestion is not available, ask the same questions as a short numbered list in plain text and wait for the reply.
 
-1. **Which session.** The user may not know where sessions are stored, so offer them from the list above, never ask for a folder. If the arguments name a session or `--latest`, use it. Otherwise ask, offering the newest first as "(Recommended)" and up to three more; label each with its title, and describe it with its folder, date, turn count and `[desktop app]` when shown. If none fit, offer "show more" (`carry list --all --limit 20`). Export by id: `carry export <id>` works from any folder.
+1. **Which session.** The user may not know where sessions are stored, so offer them from the list above, never ask for a folder. If the arguments name a session or `--latest`, use it. Otherwise ask, offering the newest first as "(Recommended)" and up to three more; label each with its title, and describe it with its folder, date, turn count and `[desktop app]` when shown. If none fit, offer "show more" (`carry list --all --limit 30`), or search by a word from the title or folder (`carry list --all --match WORD`), or one folder (`carry list --project DIR`). Export by id: `carry export <id>` works from any folder.
 2. **Encrypt?** Options:
    - "No, plain file": readable by anyone who gets it (secrets are still redacted).
    - "Yes, generate a passphrase (Recommended when sending it to someone)": run with `--generate-passphrase`.

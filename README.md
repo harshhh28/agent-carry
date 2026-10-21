@@ -19,6 +19,7 @@ npm i -g agent-carry          # installs `carry` (also available as `agent-carry
 # machine A (any folder): pick a session from a numbered list, with desktop-app titles
 carry export -o session.carry.gz
 # or: carry list --all   then   carry export <id> -o session.carry.gz
+# more rows: --limit 50 | --limit all    one folder: --project DIR    search: --match word
 
 # machine B, in the same project (any path)
 carry import session.carry.gz

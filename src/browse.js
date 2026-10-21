@@ -14,10 +14,12 @@ const isBackgroundAgent = (sum) => sum.entrypoints.length > 0 && sum.entrypoints
  * The most recent sessions across every project folder, so nobody needs to know where Claude keeps them.
  * Skips sessions with no prompts and background-agent sessions (unless `everything`). Each gets the title the
  * desktop app shows for it when there is one, else Claude's own title, else the first prompt.
+ * `folders` restricts the search to those project folders; `match` keeps rows whose title, folder or id contains the text.
  */
-export function recentSessions({ home, userHome, limit = 20, everything = false }) {
+export function recentSessions({ home, userHome, limit = 20, everything = false, folders, match }) {
   const files = [];
-  for (const folder of projectFolders(home)) {
+  for (const folder of folders ?? projectFolders(home)) {
+    if (!fs.existsSync(folder)) continue;
     for (const n of fs.readdirSync(folder)) {
       if (!n.endsWith('.jsonl')) continue;
       const file = path.join(folder, n);
@@ -26,13 +28,16 @@ export function recentSessions({ home, userHome, limit = 20, everything = false 
   }
   files.sort((a, b) => b.mtimeMs - a.mtimeMs);
   const titles = desktopSessionTitles({ home: userHome });
+  const needle = match ? String(match).toLowerCase() : null;
   const out = [];
   for (const x of files) {
     if (out.length >= limit) break;
     const entries = parseJsonl(fs.readFileSync(x.file, 'utf8'));
     const sum = summarize(entries);
     if (sum.turns === 0 || (!everything && isBackgroundAgent(sum))) continue;
-    out.push({ ...x, ...sum, desktop: titles.has(x.id), label: titles.get(x.id) || sum.title || firstPrompt(entries) || '(untitled)', where: tilde(sum.dominantCwd ?? x.folder, userHome) });
+    const row = { ...x, ...sum, desktop: titles.has(x.id), label: titles.get(x.id) || sum.title || firstPrompt(entries) || '(untitled)', where: tilde(sum.dominantCwd ?? x.folder, userHome) };
+    if (needle && !`${row.label} ${row.where} ${row.id}`.toLowerCase().includes(needle)) continue;
+    out.push(row);
   }
   return out;
 }
