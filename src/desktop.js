@@ -111,7 +111,7 @@ function lastModel(entries) {
   return model;
 }
 
-function firstPrompt(entries) {
+export function firstPrompt(entries) {
   for (const { rec } of entries) {
     if (rec?.type !== 'user' || rec.isMeta || rec.isSidechain) continue;
     const c = rec.message?.content;
@@ -188,4 +188,17 @@ export function registerDesktopSession({ id, root, mainFile, home, dir, platform
   fs.writeFileSync(tmp, JSON.stringify(entry), { mode: 0o600 });
   fs.renameSync(tmp, dest);
   return { status: 'registered', file, dir: target, how, borrowed };
+}
+
+/** cliSessionId -> the title the desktop app shows for it. Empty when there is no desktop app data. */
+export function desktopSessionTitles({ home, platform }) {
+  const out = new Map();
+  try {
+    for (const { dir } of listDesktopDirs({ home, platform })) {
+      for (const { json } of readEntries(dir)) if (json.cliSessionId && json.title) out.set(json.cliSessionId, json.title);
+    }
+  } catch {
+    // no desktop app, unreadable data, or a platform we don't know: titles are a nicety
+  }
+  return out;
 }

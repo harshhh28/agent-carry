@@ -10,11 +10,12 @@ import crypto from 'node:crypto';
 import { isEncrypted } from './crypto.js';
 import { pushProject, pullProject } from './sync.js';
 import { registerDesktopSession, listDesktopDirs } from './desktop.js';
+import { recentSessions, formatSession } from './browse.js';
 
 const HELP = `carry (agent-carry): move coding-agent sessions between machines and folders. Supported agent: claude-code
 
-  carry list    [--all] [--project DIR]
-  carry export  <id|prefix|--latest> [-o FILE] [--project-root DIR]
+  carry list    [--all [--limit N|all] [--everything]]   --all: recent sessions from every folder, with desktop-app titles
+  carry export  [id|prefix|--latest] [-o FILE]   no id: pick from a numbered list of recent sessions [--project-root DIR]
                 [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
                 [--generate-passphrase]   encrypt with a random passphrase saved next to the bundle as FILE.pass
   carry bundles                                            bundle files in this folder, ~/Downloads and ~/Desktop
@@ -32,7 +33,7 @@ Global: --claude-home DIR (default $CLAUDE_CONFIG_DIR or ~/.claude), --home DIR
 function parseArgs(argv) {
   const flags = {};
   const pos = [];
-  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file', '--desktop-dir']);
+  const valued = new Set(['-o', '--out', '--project', '--project-root', '--claude-home', '--home', '--name', '--passphrase-file', '--desktop-dir', '--limit']);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('-') && a !== '-') {
@@ -41,6 +42,29 @@ function parseArgs(argv) {
     } else pos.push(a);
   }
   return { flags, pos };
+}
+
+/** One line from stdin, or null at end of input. Synchronous so the rest of the CLI stays simple. */
+function readLine() {
+  const buf = Buffer.alloc(1);
+  let line = '';
+  let got = false;
+  for (;;) {
+    let n;
+    try {
+      n = fs.readSync(0, buf, 0, 1, null);
+    } catch (e) {
+      if (e.code === 'EAGAIN') continue;
+      if (e.code === 'EOF') break;
+      throw e;
+    }
+    if (n === 0) break;
+    got = true;
+    const c = buf.toString();
+    if (c === '\n') return line.trim();
+    line += c;
+  }
+  return got ? line.trim() : null;
 }
 
 function fail(msg) {
@@ -65,17 +89,21 @@ function main() {
     if (!cmd || cmd === 'help' || flags.help) return process.stdout.write(HELP);
 
     if (cmd === 'list') {
-      const folders = flags.all ? projectFolders(home) : [path.join(projectsDir(home), mangle(realpathOr(cwd)))];
-      let n = 0;
-      for (const f of folders) {
-        for (const s of listSessions(f)) {
-          n++;
-          const when = new Date(s.mtimeMs).toISOString().slice(0, 16).replace('T', ' ');
-          const where = flags.all ? `  ${s.dominantCwd ?? path.basename(f)}` : '';
-          process.stdout.write(`${s.id.slice(0, 8)}  ${when}  ${String(s.turns).padStart(3)} turns  ${s.title ?? '(untitled)'}${where}\n`);
-        }
+      if (flags.all) {
+        const limit = flags.limit === 'all' ? Infinity : Number(flags.limit) || 20;
+        const list = recentSessions({ home, userHome, limit, everything: !!flags.everything });
+        for (const x of list) process.stdout.write(`${formatSession(x)}\n`);
+        if (!list.length) process.stdout.write('no sessions found for any project\n');
+        else if (list.length === limit) process.stdout.write(`(showing the ${limit} most recent; --limit N or --limit all for more)\n`);
+        return;
       }
-      if (!n) process.stdout.write(`no sessions found for ${flags.all ? 'any project' : realpathOr(cwd)}\n`);
+      const here = path.join(projectsDir(home), mangle(realpathOr(cwd)));
+      const sessions = listSessions(here);
+      for (const s of sessions) {
+        const when = new Date(s.mtimeMs).toISOString().slice(0, 16).replace('T', ' ');
+        process.stdout.write(`${s.id.slice(0, 8)}  ${when}  ${String(s.turns).padStart(3)} turns  ${s.title ?? '(untitled)'}\n`);
+      }
+      if (!sessions.length) process.stdout.write(`no sessions found for ${realpathOr(cwd)}; try: carry list --all\n`);
       return;
     }
 
@@ -91,8 +119,18 @@ function main() {
         if (!s) fail(`every session for ${realpathOr(cwd)} is empty (no prompts yet); run \`carry list\``);
         if (s !== all[0]) process.stderr.write(`carry: skipped ${all.indexOf(s)} newer empty session(s); exporting ${s.id.slice(0, 8)}\n`);
         target = { folder: here, id: s.id };
+      } else if (!pos[0]) {
+        // No id and no --latest: pick from recent sessions anywhere, so nobody needs to know where they are stored.
+        const list = recentSessions({ home, userHome, limit: 10 });
+        if (!list.length) fail('no sessions found; nothing to export');
+        list.forEach((x, i) => process.stdout.write(`${formatSession(x, i + 1)}\n`));
+        process.stdout.write('Export which one? [1] ');
+        const ans = readLine();
+        if (ans === null) fail('no session chosen; pass an id (see `carry list --all`) or --latest');
+        const pick = list[(ans === '' ? 1 : Number(ans)) - 1];
+        if (!pick) fail(`"${ans}" is not one of the numbers above`);
+        target = { folder: pick.folder, id: pick.id };
       } else {
-        if (!pos[0]) fail('export needs a session id (see `carry list`) or --latest');
         // Same id can exist in several project folders (a session that was carried). Prefer the folder
         // named by --project, else the current one, and only then search everything.
         const scoped = path.join(projectsDir(home), mangle(realpathOr(flags.project || process.cwd())));
@@ -127,7 +165,7 @@ function main() {
       if (generated) fs.writeFileSync(`${out}.pass`, `${generated}\n`, { mode: 0o600 });
       const red = Object.entries(header.redaction.counts || {}).map(([k, v]) => `${k}:${v}`).join(' ') || 'none found';
       process.stdout.write(
-        `exported ${header.sessionId.slice(0, 8)} "${header.title ?? 'untitled'}" -> ${out}\n` +
+        `exported ${header.sessionId.slice(0, 8)} "${header.title ?? 'untitled'}" -> ${path.resolve(out)}\n` +
           `  parts: ${header.parts.length}   paths rewritten: ${header.pathsRewritten}\n` +
           `  redacted: ${header.redaction.enabled ? red : 'OFF'}   encrypted: ${passphrase ? 'yes' : 'no'}\n` +
           (generated ? `  passphrase saved to ${out}.pass (not printed); share it by a different channel than the bundle\n` : ''),

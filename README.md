@@ -16,9 +16,9 @@ copied session can't be resumed elsewhere. `carry` fixes that:
 ```
 npm i -g agent-carry          # installs `carry` (also available as `agent-carry`)
 
-# machine A, in the project folder
-carry list
-carry export --latest -o session.carry.gz
+# machine A (any folder): pick a session from a numbered list, with desktop-app titles
+carry export -o session.carry.gz
+# or: carry list --all   then   carry export <id> -o session.carry.gz
 
 # machine B, in the same project (any path)
 carry import session.carry.gz
@@ -70,8 +70,8 @@ Passphrases are never put on a command line. A generated one is saved beside the
 
 | command | |
 |---|---|
-| `carry list [--all]` | sessions for this folder, or all |
-| `carry export <id\|--latest> [-o FILE]` | `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
+| `carry list [--all [--limit N]]` | sessions for this folder; `--all`: recent sessions from every folder with their desktop-app titles (background-agent sessions hidden; `--everything` shows them) |
+| `carry export [id\|--latest] [-o FILE]` | with no id, pick from a numbered list.  `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
 | `carry inspect FILE` | header, parts, redaction counts |
 | `carry import FILE [--project-root DIR] [--dry-run]` | write into the target folder's session store |
 | `carry bundles` / `carry desktop-dirs` | bundle files nearby; desktop-app account folders |
@@ -79,6 +79,7 @@ Passphrases are never put on a command line. A generated one is saved beside the
 
 ## Limits
 
+- **Usage limit:** the CLI needs no Claude usage, so it still works when you have hit your limit; the plugin commands do not, because Claude has to run them.
 - **Resume** is verified on one real session (Claude Code 2.1.299); the transcript format is internal and can change. Run `scripts/verify-resume.sh <id>` to check yours.
 - **Thinking blocks are signed**, so they travel verbatim. If one contains a credential-like string, export refuses unless you pass `--strip-thinking` (resume with stripped thinking is untested) or `--allow-thinking-secrets`. `push` skips such sessions.
 - **Redaction is best effort.** It misses passwords that read like sentences and letters-only lowercase `password=word`. Read `carry inspect` before sharing, and encrypt anything you send to someone else.

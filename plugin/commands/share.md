@@ -6,9 +6,11 @@ allowed-tools: Bash(carry:*), Bash(npx -y agent-carry@latest:*), AskUserQuestion
 
 carry CLI version (this command needs 0.2.0 or newer): !`carry --version 2>&1 || echo 'not installed'`
 
-Sessions in this folder, newest first (the top one is usually this conversation):
+Recent sessions from every folder, newest first, including ones started in the Claude desktop app (the top one is usually this conversation):
 
-!`carry list 2>&1 || npx -y agent-carry@latest list 2>&1 || true`
+!`carry list --all --limit 8 2>&1 || true`
+
+Current folder: !`pwd`
 
 Arguments the user typed: $ARGUMENTS
 
@@ -18,7 +20,7 @@ You are exporting one session with the `carry` CLI.
 
 Ask with the AskUserQuestion tool, one short question at a time, and skip any question the typed arguments already answer. If AskUserQuestion is not available, ask the same questions as a short numbered list in plain text and wait for the reply.
 
-1. **Which session.** Ignore rows with 0 turns. If only one has turns, use it without asking. Otherwise ask, offering the newest first as "(Recommended)" and up to three more; label each with its id prefix and title, and describe it with its date and turn count.
+1. **Which session.** The user may not know where sessions are stored, so offer them from the list above, never ask for a folder. If the arguments name a session or `--latest`, use it. Otherwise ask, offering the newest first as "(Recommended)" and up to three more; label each with its title, and describe it with its folder, date, turn count and `[desktop app]` when shown. If none fit, offer "show more" (`carry list --all --limit 20`). Export by id: `carry export <id>` works from any folder.
 2. **Encrypt?** Options:
    - "No, plain file": readable by anyone who gets it (secrets are still redacted).
    - "Yes, generate a passphrase (Recommended when sending it to someone)": run with `--generate-passphrase`.
