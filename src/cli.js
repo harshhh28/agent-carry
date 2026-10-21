@@ -14,10 +14,10 @@ import { recentSessions, formatSession } from './browse.js';
 
 const HELP = `carry (agent-carry): move coding-agent sessions between machines and folders. Supported agent: claude-code
 
-  carry list    [--all] [--project DIR] [--match TEXT] [--limit N|all] [--everything]
-                (this folder, or --project DIR; --all: recent sessions from every folder, with desktop-app titles;
-                 --match: only rows whose title, folder or id contains TEXT)
-  carry export  [id|prefix|--latest] [-o FILE]   no id: pick from a numbered list (also takes --project DIR, --match TEXT, --limit N) [--project-root DIR]
+  carry list    [--all] [--project DIR] [--desktop | --terminal] [--match TEXT] [--limit N|all] [--everything]
+                (this folder, or --project DIR; --all: recent sessions from every folder; --desktop: only sessions
+                 from the Claude desktop app; --terminal: only terminal ones; --match: title, folder or id contains TEXT)
+  carry export  [id|prefix|--latest] [-o FILE]   no id: pick from a numbered list (also --desktop, --terminal, --project DIR, --match TEXT, --limit N) [--project-root DIR]
                 [--no-redact] [--redact-emails] [--strip-thinking | --allow-thinking-secrets]
                 [--generate-passphrase]   encrypt with a random passphrase saved next to the bundle as FILE.pass
   carry bundles                                            bundle files in this folder, ~/Downloads and ~/Desktop
@@ -86,6 +86,11 @@ function main() {
   const cwd = flags['project-root'] || flags.project || process.cwd();
   let passphrase = flags['passphrase-file'] ? fs.readFileSync(flags['passphrase-file'], 'utf8').replace(/\r?\n$/, '') : process.env.CARRY_PASSPHRASE || undefined;
   const say = (m) => flags.quiet || process.stdout.write(`${m}\n`);
+  // --desktop / --terminal on list and export: only sessions started in the desktop app / in a terminal.
+  const sourceFlag = () => {
+    if (flags.desktop && flags.terminal) fail('use --desktop or --terminal, not both');
+    return flags.desktop ? 'desktop' : flags.terminal ? 'terminal' : undefined;
+  };
 
   try {
     if (!cmd || cmd === 'help' || flags.help) return process.stdout.write(HELP);
@@ -94,10 +99,11 @@ function main() {
       // Default: this folder (or --project DIR), every session. --all: recent sessions from every folder.
       const scope = flags.all ? undefined : [path.join(projectsDir(home), mangle(realpathOr(cwd)))];
       const limit = flags.limit === 'all' ? Infinity : Number(flags.limit) || (flags.all ? 20 : Infinity);
-      const list = recentSessions({ home, userHome, limit, everything: !!flags.everything, folders: scope, match: flags.match });
+      const list = recentSessions({ home, userHome, limit, everything: !!flags.everything, folders: scope, match: flags.match, source: sourceFlag() });
       for (const x of list) process.stdout.write(`${formatSession(x)}\n`);
       const where = flags.all ? 'any project' : realpathOr(cwd);
-      if (!list.length) process.stdout.write(`no sessions found for ${where}${flags.match ? ` matching "${flags.match}"` : ''}${flags.all ? '' : '; try: carry list --all'}\n`);
+      const what = sourceFlag() ? `${sourceFlag()} ` : '';
+      if (!list.length) process.stdout.write(`no ${what}sessions found for ${where}${flags.match ? ` matching "${flags.match}"` : ''}${flags.all ? '' : '; try: carry list --all'}\n`);
       else if (list.length === limit) process.stdout.write(`(showing the ${limit} most recent; --limit N or --limit all for more)\n`);
       return;
     }
@@ -117,7 +123,7 @@ function main() {
       } else if (!pos[0]) {
         // No id and no --latest: pick from recent sessions anywhere, so nobody needs to know where they are stored.
         const scope = flags.project ? [path.join(projectsDir(home), mangle(realpathOr(flags.project)))] : undefined;
-        const list = recentSessions({ home, userHome, limit: Number(flags.limit) || 10, folders: scope, match: flags.match });
+        const list = recentSessions({ home, userHome, limit: Number(flags.limit) || 10, folders: scope, match: flags.match, source: sourceFlag() });
         if (!list.length) fail('no sessions found' + (flags.match ? ` matching "${flags.match}"` : '') + '; nothing to export');
         list.forEach((x, i) => process.stdout.write(`${formatSession(x, i + 1)}\n`));
         process.stdout.write('Export which one? [1] ');

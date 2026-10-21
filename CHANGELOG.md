@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `carry list --all` now shows the most recent sessions across every folder, newest first, with the title the desktop app shows and the folder; background-agent sessions (e.g. a memory plugin's observer) are hidden unless `--everything`. `carry export` with no id offers a numbered picker. `--limit N|all` shows more, `--project DIR` lists one folder, `--match TEXT` filters by title, folder or id. Nobody needs to know where sessions are stored. `/carry:share` uses it (plugin 0.3.0).
+- `carry list --all` now shows the most recent sessions across every folder, newest first, with the title the desktop app shows and the folder; background-agent sessions (e.g. a memory plugin's observer) are hidden unless `--everything`. `carry export` with no id offers a numbered picker. `--limit N|all` shows more, `--project DIR` lists one folder, `--match TEXT` filters by title, folder or id, and `--desktop` / `--terminal` keep only sessions started in the desktop app or a terminal (every row is tagged; archived desktop sessions are marked; a desktop session with no project folder shows as "desktop scratch folder"). Nobody needs to know where sessions are stored. `/carry:share` uses it (plugin 0.3.0).
 
 - Plugin 0.2.1 (released): commands check the CLI version first and say how to upgrade if it is older, instead of aborting on an unknown-command error.
 - Plugin 0.2.0: `/carry:share` and `/carry:pickup` ask what they need (session, encryption, passphrase source, destination folder, desktop app and account) instead of expecting flags. Needs the CLI from this release.

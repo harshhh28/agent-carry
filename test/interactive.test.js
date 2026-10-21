@@ -78,7 +78,7 @@ test('list --all spans folders, hides background-agent sessions, and uses the de
   fs.writeFileSync(path.join(dd, 'local_1.json'), JSON.stringify({ sessionId: 'local_1', cliSessionId: 'aaaaaaaa-0000-0000-0000-000000000001', title: 'Login page work' }));
   const out = run(['list', '--all', '--claude-home', s.m.claude, '--home', s.a]);
   const lines = out.split('\n').filter(Boolean);
-  assert.match(lines[0], /^aaaaaaaa .*Login page work {2}\[desktop app\]/, 'newest first, with the desktop title');
+  assert.match(lines[0], /^aaaaaaaa .*Login page work {2}\[desktop\]/, 'newest first, with the desktop title');
   assert.ok(!out.includes('bbbbbbbb'), 'background agent hidden');
   assert.match(out, /cccccccc .*older terminal session/);
   assert.match(out, /11111111 .*Fix the app/);
@@ -112,4 +112,44 @@ test('list: a single folder via --project, and --match narrows by title or folde
   assert.ok(!byTitle.includes('cccccccc'));
   assert.match(run(['list', '--all', '--match', 'work/app', ...base]), /cccccccc/, 'matches the folder too');
   assert.match(run(['list', '--all', '--match', 'zzz-nothing', ...base]), /no sessions found for any project matching "zzz-nothing"/);
+});
+
+test('list --desktop and --terminal filter by where the session was started; archived and imported ones are tagged', () => {
+  const s = twoSessionMachine();
+  const base = ['--claude-home', s.m.claude, '--home', s.a];
+  const idx = path.join(s.a, 'Library', 'Application Support', 'Claude', 'claude-code-sessions', 'acct', 'org');
+  fs.mkdirSync(idx, { recursive: true });
+  // a terminal-born session that the desktop app lists (e.g. imported with --desktop), and an archived one
+  const mk = (id, entrypoint) => fs.writeFileSync(path.join(s.m.folder, `${id}.jsonl`), JSON.stringify({ type: 'user', uuid: `u-${id}`, sessionId: id, cwd: s.root, entrypoint, timestamp: '2026-10-14T09:00:00Z', message: { role: 'user', content: `prompt ${id}` } }) + '\n');
+  mk('dddddddd-0000-0000-0000-000000000004', 'cli');
+  mk('eeeeeeee-0000-0000-0000-000000000005', 'claude-desktop');
+  fs.writeFileSync(path.join(idx, 'local_a.json'), JSON.stringify({ cliSessionId: 'aaaaaaaa-0000-0000-0000-000000000001', title: 'Login page work' }));
+  fs.writeFileSync(path.join(idx, 'local_d.json'), JSON.stringify({ cliSessionId: 'dddddddd-0000-0000-0000-000000000004', title: 'Imported one' }));
+  fs.writeFileSync(path.join(idx, 'local_e.json'), JSON.stringify({ cliSessionId: 'eeeeeeee-0000-0000-0000-000000000005', title: 'Old chat', isArchived: true }));
+  const desk = run(['list', '--all', '--desktop', ...base]);
+  assert.match(desk, /aaaaaaaa .*\[desktop\]/);
+  assert.match(desk, /dddddddd .*Imported one {2}\[desktop\]/, 'listed by the app, so it counts as desktop');
+  assert.match(desk, /eeeeeeee .*\[desktop, archived\]/);
+  assert.ok(!desk.includes('cccccccc') && !desk.includes('11111111'), 'terminal sessions excluded');
+  const term = run(['list', '--all', '--terminal', ...base]);
+  assert.match(term, /cccccccc .*\[terminal\]/);
+  assert.match(term, /11111111 .*\[terminal\]/);
+  assert.ok(!term.includes('aaaaaaaa') && !term.includes('dddddddd'));
+  assert.throws(() => run(['list', '--all', '--desktop', '--terminal', ...base]), /not both/);
+  assert.match(run(['list', '--all', '--desktop', '--match', 'zzz', ...base]), /no desktop sessions found for any project matching "zzz"/);
+  const out = path.join(s.a, 'dp.carry.gz');
+  assert.match(run(['export', '--desktop', '-o', out, ...base], { cwd: tmp(), input: '3\n' }), /exported aaaaaaaa/, 'the export picker honours --desktop');
+});
+
+test('a desktop session with no project folder shows a readable location', () => {
+  const s = machine();
+  const acct = '6e111bcf-e19b-4d00-8011-bb08465b18b9';
+  const scratch = path.join(s.a, 'Library', 'Application Support', 'Claude', 'scratch-workspaces', acct, 'c83f5676-c889-4b53-9a50-f1414a4f8764', 'scratch-2026-10-20');
+  fs.mkdirSync(scratch, { recursive: true });
+  const folder = path.join(s.m.claude, 'projects', 'scratch-folder');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'ffffffff-0000-0000-0000-000000000006.jsonl'), JSON.stringify({ type: 'user', uuid: 'u-f', sessionId: 'f', cwd: scratch, entrypoint: 'claude-desktop', timestamp: '2026-10-20T09:00:00Z', message: { role: 'user', content: 'quick question' } }) + '\n');
+  const out = run(['list', '--all', '--desktop', '--claude-home', s.m.claude, '--home', s.a]);
+  assert.match(out, /\(desktop scratch folder: scratch-2026-10-20\)/);
+  assert.ok(!out.includes('c83f5676'));
 });

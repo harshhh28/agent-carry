@@ -20,6 +20,7 @@ npm i -g agent-carry          # installs `carry` (also available as `agent-carry
 carry export -o session.carry.gz
 # or: carry list --all   then   carry export <id> -o session.carry.gz
 # more rows: --limit 50 | --limit all    one folder: --project DIR    search: --match word
+# only desktop-app sessions: --desktop    only terminal ones: --terminal   (each row is tagged [desktop] / [terminal])
 
 # machine B, in the same project (any path)
 carry import session.carry.gz
@@ -71,8 +72,8 @@ Passphrases are never put on a command line. A generated one is saved beside the
 
 | command | |
 |---|---|
-| `carry list [--all [--limit N]]` | sessions for this folder; `--all`: recent sessions from every folder with their desktop-app titles (background-agent sessions hidden; `--everything` shows them) |
-| `carry export [id\|--latest] [-o FILE]` | with no id, pick from a numbered list.  `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
+| `carry list [--all] [--project DIR] [--desktop\|--terminal] [--match TEXT] [--limit N]` | sessions for this folder, or `--all`: recent sessions from every folder, each tagged by where it was started (`[desktop]`, `[terminal]`, `[print mode]`) with the desktop app's title. `--desktop` / `--terminal` keep only those. Background-agent sessions are hidden; `--everything` shows them |
+| `carry export [id\|--latest] [-o FILE]` | with no id, pick from a numbered list (takes the same `--desktop`, `--terminal`, `--project`, `--match`).  `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
 | `carry inspect FILE` | header, parts, redaction counts |
 | `carry import FILE [--project-root DIR] [--dry-run]` | write into the target folder's session store |
 | `carry bundles` / `carry desktop-dirs` | bundle files nearby; desktop-app account folders |

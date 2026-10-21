@@ -190,15 +190,15 @@ export function registerDesktopSession({ id, root, mainFile, home, dir, platform
   return { status: 'registered', file, dir: target, how, borrowed };
 }
 
-/** cliSessionId -> the title the desktop app shows for it. Empty when there is no desktop app data. */
-export function desktopSessionTitles({ home, platform }) {
+/** cliSessionId -> { title, archived } as the desktop app lists it. Empty when there is no desktop app data. */
+export function desktopSessionInfo({ home, platform }) {
   const out = new Map();
   try {
     for (const { dir } of listDesktopDirs({ home, platform })) {
-      for (const { json } of readEntries(dir)) if (json.cliSessionId && json.title) out.set(json.cliSessionId, json.title);
+      for (const { json } of readEntries(dir)) if (json.cliSessionId) out.set(json.cliSessionId, { title: json.title || null, archived: !!json.isArchived });
     }
   } catch {
-    // no desktop app, unreadable data, or a platform we don't know: titles are a nicety
+    // no desktop app, unreadable data, or a platform we don't know: this is a nicety, not a requirement
   }
   return out;
 }
