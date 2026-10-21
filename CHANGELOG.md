@@ -1,18 +1,29 @@
 # Changelog
 
-## Unreleased
+Plugin, marketplace entry and package share one version number; `npm version` keeps them in step.
 
-- `carry list --all` now shows the most recent sessions across every folder, newest first, with the title the desktop app shows and the folder; background-agent sessions (e.g. a memory plugin's observer) are hidden unless `--everything`. `carry export` with no id offers a numbered picker. `--limit N|all` shows more, `--project DIR` lists one folder, `--match TEXT` filters by title, folder or id, and `--desktop` / `--terminal` keep only sessions started in the desktop app or a terminal (every row is tagged; archived desktop sessions are marked; a desktop session with no project folder shows as "desktop scratch folder"). Nobody needs to know where sessions are stored. `/carry:share` uses it (plugin 0.3.0).
+## 0.4.0
 
-- Plugin 0.2.1 (released): commands check the CLI version first and say how to upgrade if it is older, instead of aborting on an unknown-command error.
-- Plugin 0.2.0: `/carry:share` and `/carry:pickup` ask what they need (session, encryption, passphrase source, destination folder, desktop app and account) instead of expecting flags. Needs the CLI from this release.
+Finding sessions without knowing where they are stored. (0.3.0 was tagged but never published to npm.)
+
+- `carry list --all` shows the most recent sessions across every folder, newest first, each tagged by where it was started (`[desktop]`, `[terminal]`, `[print mode]`) with the title the desktop app shows. Background-agent sessions (for example a memory plugin's observer) are hidden unless `--everything`.
+- `carry list` options: `--limit N|all`, `--project DIR` (one folder), `--match TEXT` (title, folder or id), `--desktop` / `--terminal` (only sessions started there). Archived desktop sessions are marked; a desktop conversation with no project folder shows as "desktop scratch folder".
+- `carry export` with no id offers a numbered picker that takes the same options.
+- `/carry:share` uses the list; the plugin commands need CLI 0.4.0 or newer.
+
+## 0.2.1
+
+- Plugin commands check the CLI version first and say how to upgrade if it is older, instead of aborting on an unknown-command error.
+
+## 0.2.0
+
+- `carry import --desktop` adds the session to the Claude desktop app's Code tab (macOS). It targets the signed-in account (read from the app's log) and works for a freshly signed-in account by borrowing only app-level settings. Terminal colour codes in newly imported text are stripped, since the app shows them as literal characters.
+- `export --latest` skips sessions with no prompts.
+- Interactive plugin commands: `/carry:share` and `/carry:pickup` ask what they need (session, encryption, passphrase source, destination folder, desktop app and account). Installable with `/plugin install carry --marketplace harshhh28/agent-carry`.
 - `export --generate-passphrase` (saved to `FILE.pass`, never printed); `carry bundles`; `carry desktop-dirs`.
-- `--desktop` targets the signed-in account (read from the app's log) instead of any folder with sessions, and works for a freshly signed-in account by borrowing only app-level settings.
 
-- Plugin installable from this repo: `/plugin install carry --marketplace harshhh28/agent-carry`.
-- `export --latest` skips sessions with no prompts, so an opened-and-closed session no longer shadows the real one.
-- `--desktop` strips terminal colour codes from newly imported text, which the app shows as literal characters.
-- `carry import --desktop` adds the session to the Claude desktop app's Code tab (macOS).
+## 0.1.1
+
 - `agent-carry` works as a second command name for `carry`.
 - README trimmed; plugin author set.
 

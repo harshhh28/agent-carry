@@ -20,7 +20,9 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
-    "check:real": "node scripts/check-real.js"
+    "check:real": "node scripts/check-real.js",
+    "preversion": "npm test",
+    "version": "node scripts/sync-version.js && git add plugin/.claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md"
   },
   "keywords": [
     "claude-code",

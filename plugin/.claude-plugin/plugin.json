@@ -1,7 +1,10 @@
 {
   "name": "carry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Move coding-agent sessions between machines and folders: /carry:share exports a redacted, path-portable bundle, /carry:pickup imports one.",
-  "author": { "name": "Harsh Gajjar", "email": "harshgajjar2812@gmail.com" },
+  "author": {
+    "name": "Harsh Gajjar",
+    "email": "harshgajjar2812@gmail.com"
+  },
   "license": "MIT"
 }

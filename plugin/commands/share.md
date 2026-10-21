@@ -4,7 +4,7 @@ argument-hint: [optional carry export flags, e.g. -o FILE --strip-thinking]
 allowed-tools: Bash(carry:*), Bash(npx -y agent-carry@latest:*), AskUserQuestion
 ---
 
-carry CLI version (this command needs 0.2.0 or newer): !`carry --version 2>&1 || echo 'not installed'`
+carry CLI version (this command needs 0.4.0 or newer): !`carry --version 2>&1 || echo 'not installed'`
 
 Recent sessions from every folder, newest first, including ones started in the Claude desktop app (the top one is usually this conversation):
 
@@ -14,7 +14,7 @@ Current folder: !`pwd`
 
 Arguments the user typed: $ARGUMENTS
 
-**Step 0.** Look at the version line above. If it says "not installed" or shows anything older than 0.2.0, stop and say exactly this, with nothing else: "This command needs the carry CLI 0.2.0 or newer. Run `npm i -g agent-carry@latest`, then try again." (If that install still gives an older version, 0.2.0 has not been published to npm yet.) Any error text shown in the listings below comes from the same cause; do not try to work around it.
+**Step 0.** Look at the version line above. If it says "not installed" or shows anything older than 0.4.0, stop and say exactly this, with nothing else: "This command needs the carry CLI 0.4.0 or newer. Run `npm i -g agent-carry@latest`, then try again." (If that install still gives an older version, 0.4.0 has not been published to npm yet.) Any error text shown in the listings below comes from the same cause; do not try to work around it.
 
 You are exporting one session with the `carry` CLI.
 
