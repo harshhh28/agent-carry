@@ -61,7 +61,7 @@ Projects are matched by git remote, not path. Each file has one writer, so there
 /plugin install carry --marketplace harshhh28/agent-carry
 ```
 
-Needs `npm i -g agent-carry` (or falls back to `npx`). Works the same in the terminal and in the desktop app's Code tab.
+Needs the CLI (`npm i -g agent-carry`, 0.4.0 or newer). Works the same in the terminal and in the desktop app's Code tab. To update later: `npm i -g agent-carry@latest`, then `/plugin marketplace update agent-carry` and `/reload-plugins`.
 
 - `/carry:share` asks which session, whether to encrypt (generate a passphrase, use your own file, or type one), and where to save.
 - `/carry:pickup` lists bundles in this folder, ~/Downloads and ~/Desktop, then asks which one, the passphrase source, which folder to import into, and whether to add it to the desktop app (and which account).
@@ -73,7 +73,7 @@ Passphrases are never put on a command line. A generated one is saved beside the
 | command | |
 |---|---|
 | `carry list [--all] [--project DIR] [--desktop\|--terminal] [--match TEXT] [--limit N]` | sessions for this folder, or `--all`: recent sessions from every folder, each tagged by where it was started (`[desktop]`, `[terminal]`, `[print mode]`) with the desktop app's title. `--desktop` / `--terminal` keep only those. Background-agent sessions are hidden; `--everything` shows them |
-| `carry export [id\|--latest] [-o FILE]` | with no id, pick from a numbered list (takes the same `--desktop`, `--terminal`, `--project`, `--match`).  `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
+| `carry export [id\|--latest] [-o FILE]` | with no id, pick from a numbered list (takes the same `--desktop`, `--terminal`, `--project`, `--match`). Also `--generate-passphrase`, `--no-redact`, `--redact-emails`, `--strip-thinking`, `--allow-thinking-secrets`, `--project-root DIR` |
 | `carry inspect FILE` | header, parts, redaction counts |
 | `carry import FILE [--project-root DIR] [--dry-run]` | write into the target folder's session store |
 | `carry bundles` / `carry desktop-dirs` | bundle files nearby; desktop-app account folders |
@@ -92,7 +92,7 @@ Passphrases are never put on a command line. A generated one is saved beside the
 ## Development
 
 ```
-npm test                  # 49 tests, synthetic two-machine setups
+npm test                  # 56 tests, synthetic two-machine setups
 npm run check:real        # read-only round trip of your own ~/.claude sessions
 ```
 
