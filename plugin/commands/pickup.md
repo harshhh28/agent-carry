@@ -12,7 +12,7 @@ Bundle files nearby (this folder, ~/Downloads, ~/Desktop), newest first:
 
 Current folder: !`pwd`
 
-Claude desktop app account folders (macOS only; an error here just means no desktop app):
+Claude desktop app accounts (macOS only; an error here just means no desktop app):
 
 !`carry desktop-dirs 2>&1 || true`
 
@@ -31,6 +31,6 @@ Ask with the AskUserQuestion tool, one short question at a time, and skip any qu
    - "I'll type it here": warn that it is stored in this conversation's history. Pass it as `CARRY_PASSPHRASE='…' carry import …` and never repeat it back.
    (If `CARRY_PASSPHRASE` is already set in the environment, nothing is needed.) On a wrong-passphrase error, say so and ask once more.
 3. **Which folder.** Claude Code finds a session by the folder you run `claude` in, so this should be the folder they will work in. Offer the current folder as "(Recommended)" or another path (create it with `mkdir -p` only if the user says so). Pass it as `--project-root`.
-4. **Claude desktop app (only if account folders are listed above).** Ask "Also show it in the Claude desktop app's Code tab?" If yes and more than one folder is listed, ask which account: the one marked "* signed in" is "(Recommended)"; the rest are listed by their folder name and session count. Use `--desktop` for the signed-in account, or `--desktop-dir <folder>` for another one. If the import says it cannot tell which account is signed in, ask the user to choose from the list it printed.
+4. **Claude desktop app (only if account folders are listed above).** Ask only "Also show it in the Claude desktop app's Code tab?" Do not ask which account: `--desktop` picks the right one by itself (the account the desktop app is signed in to; in a terminal, the one that matches this terminal's login). Never show the user folder paths or ids. If the import fails with "this terminal is logged in as one Claude account but the desktop app is signed in as another", or "cannot tell which desktop account is signed in", ask once with AskUserQuestion, labelling each option with the account name and email, session count and example titles taken from that error (never ids or paths), and re-run with `--desktop-dir <that option's folder>`. A line starting with `*` in the listing above marks the account the desktop app is signed in to.
 5. **Run** `carry import <bundle> --project-root <folder> [--passphrase-file F] [--desktop | --desktop-dir D]` (add `--dry-run` if the user typed it, and say nothing was written).
-6. **Report in at most five lines:** the session id, the folder it went into, and any warning. Then the next step: exit this session, then `cd <folder> && claude --resume <id>`; for the desktop app, restart it if the session does not appear and open the Code tab. A running session cannot swap its own history, so do not run `claude --resume` yourself.
+6. **Report in at most five lines:** the session id, the folder it went into, which account's Code tab it was added to (use the "Code tab of:" line from the import, e.g. a name and email; say it can be redone for another account if that is wrong), and any warning. Then the next step: exit this session, then `cd <folder> && claude --resume <id>`; for the desktop app, restart it if the session does not appear and open the Code tab. A running session cannot swap its own history, so do not run `claude --resume` yourself.

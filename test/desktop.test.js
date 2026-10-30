@@ -177,3 +177,97 @@ test('--desktop strips terminal colour codes from newly imported text; a plain i
   assert.ok(!stripped.includes('\\u001b['));
   assert.ok(stripped.includes('Context used'));
 });
+
+// ---- readable account names and automatic account choice ----
+const A1 = '11111111-1111-1111-1111-111111111111';
+const A2 = '22222222-2222-2222-2222-222222222222';
+const ORG = '0a0a0a0a-0000-0000-0000-000000000000';
+
+function accountsHome({ desktopAccount, cliAccountUuid, withLog = false }) {
+  const home = tmp('carry-acct-');
+  const app = path.join(home, 'Library', 'Application Support', 'Claude');
+  const idx = (a, titles) => {
+    const d = path.join(app, 'claude-code-sessions', a, ORG);
+    fs.mkdirSync(d, { recursive: true });
+    titles.forEach((t, i) => fs.writeFileSync(path.join(d, `local_${i}.json`), JSON.stringify({ cliSessionId: `s-${a.slice(0, 2)}-${i}`, title: t, lastActivityAt: i })));
+  };
+  idx(A1, ['Billing refactor', 'Login page']);
+  idx(A2, ['Quarterly report']);
+  if (desktopAccount) fs.writeFileSync(path.join(app, 'config.json'), JSON.stringify({ lastKnownAccountUuid: desktopAccount }));
+  if (cliAccountUuid) fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { accountUuid: cliAccountUuid, organizationUuid: ORG, emailAddress: 'maya@example.com', displayName: 'Maya', fullName: 'Maya Rao', organizationName: 'Acme Corp' } }));
+  if (withLog) {
+    fs.mkdirSync(path.join(home, 'Library', 'Logs', 'Claude'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'Library', 'Logs', 'Claude', 'main.log'), `scratch-workspaces/${A1}/${ORG}/s\n`);
+  }
+  return home;
+}
+
+test('accounts are labelled by name and email when known, otherwise by what they hold; ids never appear in a label', () => {
+  const home = accountsHome({ desktopAccount: A2, cliAccountUuid: A2 });
+  const list = listDesktopDirs({ home, platform: 'darwin' });
+  const mine = list.find((x) => x.account === A2);
+  const other = list.find((x) => x.account === A1);
+  assert.match(mine.label, /^Maya Rao <maya@example\.com> · Acme Corp \(1 session in the Code tab, e\.g\. “Quarterly report”\)$/);
+  assert.match(other.label, /^A different Claude account \(2 sessions in the Code tab, e\.g\. /);
+  assert.match(other.label, /Login page/);
+  for (const x of list) assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}/.test(x.label), 'no uuid in a label');
+  assert.equal(mine.active, true);
+  assert.equal(other.active, false);
+});
+
+test('the desktop app’s own record of who is signed in beats the log', () => {
+  const home = accountsHome({ desktopAccount: A2, withLog: true }); // the log names A1, config.json names A2
+  assert.equal(resolveDesktopDir({ home, platform: 'darwin', surface: 'claude-desktop' }).dir.includes(A2), true);
+});
+
+test('from a terminal, the account is chosen without asking when the terminal and the desktop app agree', () => {
+  const home = accountsHome({ desktopAccount: A2, cliAccountUuid: A2 });
+  for (const surface of ['cli', 'claude-desktop', undefined]) {
+    const r = resolveDesktopDir({ home, platform: 'darwin', surface });
+    assert.ok(r.dir.includes(A2));
+    assert.match(r.label, /^Maya Rao <maya@example\.com>/);
+  }
+});
+
+test('when the terminal and the desktop app are different accounts, a terminal is asked, by name; the desktop app is not', () => {
+  const home = accountsHome({ desktopAccount: A1, cliAccountUuid: A2 });
+  assert.ok(resolveDesktopDir({ home, platform: 'darwin', surface: 'claude-desktop' }).dir.includes(A1), 'the desktop app: its own account');
+  let err;
+  try {
+    resolveDesktopDir({ home, platform: 'darwin', surface: 'cli' });
+  } catch (e) {
+    err = e;
+  }
+  assert.ok(err, 'asks');
+  assert.equal(err.choices.length, 2);
+  assert.match(err.choices[0].label, /Maya Rao <maya@example\.com>/);
+  assert.match(err.choices[1].label, /A different Claude account/);
+  assert.match(err.message, /this terminal is logged in as one Claude account but the desktop app is signed in as another/);
+});
+
+test('import --desktop names the account it used instead of a folder id', () => {
+  const s = setup({ withTemplate: false });
+  const home = s.b;
+  const idx = path.join(home, 'Library', 'Application Support', 'Claude');
+  fs.writeFileSync(path.join(idx, 'config.json'), JSON.stringify({ lastKnownAccountUuid: 'acct' }));
+  fs.writeFileSync(path.join(s.dd, 'local_template.json'), JSON.stringify(TEMPLATE));
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { accountUuid: 'acct', organizationUuid: 'org', emailAddress: 'maya@example.com', fullName: 'Maya Rao' } }));
+  const out = run(s, ['--desktop']);
+  assert.match(out, /Code tab of: Maya Rao <maya@example\.com> \(1 session in the Code tab/);
+  assert.match(out, /chosen as: the signed-in desktop account/);
+  assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-/.test(out.split('\n').filter((l) => /Code tab of|chosen as/.test(l)).join('\n')), 'no id in the account lines');
+});
+
+test('an account label lists distinct example titles, and says so when the Code tab has no sessions yet', () => {
+  const home = tmp('carry-dup-');
+  const d = path.join(home, 'Library', 'Application Support', 'Claude', 'claude-code-sessions');
+  const mk = (acct, titles) => {
+    fs.mkdirSync(path.join(d, acct, ORG), { recursive: true });
+    titles.forEach((t, i) => fs.writeFileSync(path.join(d, acct, ORG, `local_${i}.json`), JSON.stringify({ cliSessionId: `c${i}`, title: t, lastActivityAt: 10 - i })));
+  };
+  mk(A1, ['Same title', 'Same title', 'Other title']);
+  mk(A2, []);
+  const list = listDesktopDirs({ home, platform: 'darwin' });
+  assert.match(list.find((x) => x.account === A1).label, /3 sessions in the Code tab, e\.g\. “Same title”, “Other title”\)$/);
+  assert.match(list.find((x) => x.account === A2).label, /\(no sessions in the Code tab yet\)$/);
+});

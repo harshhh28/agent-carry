@@ -42,7 +42,7 @@ carry import session.carry.gz --desktop
 App settings are copied from that account's newest Code-tab session (or, for a new account, another account's), so use the Code tab at least once first.
 Terminal colour codes in the imported text are stripped (the app would show them as literal `[38;2;…m`). Restart the desktop app if the session doesn't show.
 
-The session is added to the account that is signed in (read from the app's log). If it can't tell, or you want another account, use `--desktop-dir DIR`; `carry desktop-dirs` lists the choices. A freshly signed-in account with no sessions borrows only app-level settings from another account, never its connectors or permissions. Cowork is a different store and isn't supported.
+The session is added to the account the desktop app is signed in to. From a terminal that is logged in as a different account, `carry` stops and asks which Code tab you mean, naming the accounts (by name and email where known, otherwise by the sessions they hold). To choose explicitly use `--desktop-dir DIR`; `carry desktop-dirs` lists the accounts. A freshly signed-in account with no sessions borrows only app-level settings from another account, never its connectors or permissions. Cowork is a different store and isn't supported.
 
 ### Sync through a shared folder
 

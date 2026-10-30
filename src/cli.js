@@ -219,7 +219,10 @@ function main() {
 
     if (cmd === 'desktop-dirs') {
       const list = listDesktopDirs({ home: userHome });
-      for (const x of list) process.stdout.write(`${x.active ? '* signed in' : '  other    '}  ${x.entries} session${x.entries === 1 ? ' ' : 's'}  ${x.dir}\n`);
+      for (const x of list) {
+        const tags = [x.active ? 'signed in to the desktop app' : null, x.cli ? 'this terminal\'s login' : null].filter(Boolean).join(', ');
+        process.stdout.write(`${x.active ? '*' : ' '} ${x.label}${tags ? `  [${tags}]` : ''}\n    --desktop-dir "${x.dir}"\n`);
+      }
       if (!list.length) process.stdout.write('no desktop account folders found\n');
       return;
     }
@@ -248,7 +251,7 @@ function main() {
           const d = registerDesktopSession({ id: plan.id, root: plan.root, mainFile: main.dest, home: userHome, dir: flags['desktop-dir'], dryRun: !!flags['dry-run'] });
           const verb = { registered: 'added to the desktop Code tab', exists: 'already in the desktop Code tab', 'would-register': 'would be added to the desktop Code tab' }[d.status];
           process.stdout.write(`  ${verb} (${d.file}); restart the Claude desktop app if it does not appear\n`);
-          process.stdout.write(`  desktop folder: ${d.dir}\n`);
+          if (d.label) process.stdout.write(`  Code tab of: ${d.label}\n`);
           if (d.status === 'exists' && d.entryCwd && d.entryCwd !== plan.root) process.stdout.write(`  note: that Code-tab entry points at ${d.entryCwd}, not ${plan.root}\n`);
           process.stdout.write(`  chosen as: ${d.how}${d.borrowed ? '; this account has no sessions yet, so app settings were borrowed from another account' : ''}\n`);
         } catch (e) {

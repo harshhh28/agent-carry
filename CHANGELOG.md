@@ -2,6 +2,11 @@
 
 Plugin, marketplace entry and package share one version number; `npm version` keeps them in step.
 
+## Unreleased
+
+- `/carry:pickup` no longer asks which account to use or shows ids. `--desktop` picks the account the desktop app is signed in to (read from the app's own config, with the log as a fallback), and in a terminal asks only when the terminal and the desktop app are logged in as different accounts.
+- Accounts are described by name and email where known (the terminal's login), otherwise by the sessions they hold, never by id: `carry desktop-dirs` and the import output now say which account's Code tab got the session.
+
 ## 0.4.0
 
 Finding sessions without knowing where they are stored. (0.3.0 was tagged but never published to npm.)
